@@ -13,12 +13,18 @@ import re
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Analizador de Reputación", layout="centered")
 
-# --- 2. ESTILOS CSS (SOLO PARA ETIQUETAS DE COLOR) ---
+# --- 2. ESTILOS CSS ---
 st.markdown("""
 <style>
-    .noticia-buena { color: #2e7d32; font-weight: bold; padding: 2px 8px; border-radius: 4px; background-color: #e8f5e9; }
-    .noticia-mala { color: #d32f2f; font-weight: bold; padding: 2px 8px; border-radius: 4px; background-color: #ffebee; }
-    .noticia-neutra { color: #555; font-weight: bold; padding: 2px 8px; border-radius: 4px; background-color: #f5f5f5; }
+    /* Ocultar elementos de Streamlit */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Etiquetas de colores */
+    .noticia-buena { color: #2e7d32; font-weight: bold; background-color: #e8f5e9; padding: 2px 6px; border-radius: 4px; }
+    .noticia-mala { color: #d32f2f; font-weight: bold; background-color: #ffebee; padding: 2px 6px; border-radius: 4px; }
+    .noticia-neutra { color: #555; font-weight: bold; background-color: #f5f5f5; padding: 2px 6px; border-radius: 4px; }
     .fuente-fecha { font-size: 0.9em; color: gray; }
 </style>
 """, unsafe_allow_html=True)
@@ -55,11 +61,11 @@ def analizar_con_inteligencia(texto_original):
         return 0.5
 
 def limpiar_texto_profundo(texto):
-    # 1. Decodificar HTML (&nbsp;, &amp;, etc)
+    # 1. Decodificar caracteres HTML (ej: &quot; -> ")
     txt = html.unescape(texto)
-    # 2. Quitar etiquetas HTML (<br>, <b>, etc)
+    # 2. ELIMINAR CUALQUIER ETIQUETA HTML (ej: <a href...>, <b>, <div>) usando expresiones regulares
     txt = re.sub(r'<[^>]+>', '', txt)
-    # 3. Quitar espacios extra
+    # 3. Quitar espacios múltiples
     return " ".join(txt.split())
 
 def obtener_clima_texto(nota):
@@ -106,9 +112,10 @@ if submitted and tema_es:
             if hasattr(entry, 'published_parsed'):
                 fecha = datetime.fromtimestamp(mktime(entry.published_parsed))
                 if fecha >= fecha_limite:
-                    # Usamos TITLE + DESCRIPTION para tener más texto
-                    raw_txt = f"{entry.title}. {entry.description}"
-                    txt = limpiar_texto_profundo(raw_txt)
+                    # Texto bruto con posible HTML
+                    raw = f"{entry.title}. {entry.description}"
+                    # Limpieza profunda (borra los <a href...>)
+                    txt = limpiar_texto_profundo(raw)
                     link = getattr(entry, 'link', '#')
                     
                     if len(txt) > 10:
@@ -122,8 +129,8 @@ if submitted and tema_es:
             if hasattr(entry, 'published_parsed'):
                 fecha = datetime.fromtimestamp(mktime(entry.published_parsed))
                 if fecha >= fecha_limite:
-                    raw_txt = f"{entry.title}. {entry.description}"
-                    txt = limpiar_texto_profundo(raw_txt)
+                    raw = f"{entry.title}. {entry.description}"
+                    txt = limpiar_texto_profundo(raw)
                     link = getattr(entry, 'link', '#')
                     
                     if len(txt) > 10:
@@ -142,7 +149,7 @@ if submitted and tema_es:
             nota_nac = calc_7(noticias_nac)
             nota_glob = calc_7(noticias_inter + noticias_nac)
 
-            # --- SECCIÓN DE MÉTRICAS ---
+            # --- MÉTRICAS ---
             st.divider()
             txt_nac = obtener_clima_texto(nota_nac)
             txt_int = obtener_clima_texto(nota_int)
@@ -169,38 +176,39 @@ if submitted and tema_es:
             for n in todas:
                 score = n['score']
                 if score > 0.65:
-                    etiqueta = "🟢 BUENA"
+                    etiqueta = "BUENA"
                     clase_css = "noticia-buena"
                 elif score < 0.4:
-                    etiqueta = "🔴 MALA"
+                    etiqueta = "MALA"
                     clase_css = "noticia-mala"
                 else:
-                    etiqueta = "⚪ NEUTRA"
+                    etiqueta = "NEUTRA"
                     clase_css = "noticia-neutra"
 
                 f_str = n['fecha'].strftime("%d/%m")
-                # Texto más largo (200 caracteres) para entender mejor la noticia
-                texto_largo = (n['txt'][:200] + '...') if len(n['txt']) > 200 else n['txt']
-                
-                # --- DISEÑO ROBUSTO ---
+                # Texto limpio y cortado
+                texto_corto = (n['txt'][:180] + '...') if len(n['txt']) > 180 else n['txt']
+
+                # VISUALIZACIÓN
                 with st.container():
-                    # 1. Cabecera con metadatos y nota
+                    # Cabecera
                     st.markdown(f"""
-                    <div style="margin-bottom: 5px;">
-                        <span style="font-size:1.2em;">{n['flag']}</span> 
-                        <span class="fuente-fecha">[{f_str}] <b>{n['fuente']}</b></span>
-                        <span style="float:right;" class="{clase_css}">{etiqueta} ({score:.2f})</span>
+                    <div style="margin-bottom: 5px; display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            <span style="font-size:1.2em;">{n['flag']}</span> 
+                            <span class="fuente-fecha">[{f_str}] <b>{n['fuente']}</b></span>
+                        </div>
+                        <span class="{clase_css}">{etiqueta} ({score:.2f})</span>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # 2. Cuerpo de texto (Sin enlaces dentro para no romperlo)
-                    st.info(texto_largo)
-
-                    # 3. Enlace FUERA del cuadro azul (Funciona siempre)
-                    st.markdown(f"👉 [Leer noticia original en **{n['fuente']}**]({n['link']})")
+                    # Cuerpo de texto (Caja azul limpia)
+                    st.info(texto_corto)
                     
-                    st.write("") # Espacio en blanco
-                    st.divider() # Línea separadora
+                    # Botón de enlace (Nativo de Streamlit - Siempre funciona)
+                    st.link_button("🔗 Leer noticia completa", n['link'])
+                    
+                    st.markdown("---") # Separador
 
         else:
             st.warning("No se encontraron noticias recientes sobre este tema.")

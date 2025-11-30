@@ -26,7 +26,6 @@ st.markdown("""
     .noticia-neutra { color: #555; font-weight: bold; background-color: #f5f5f5; padding: 2px 6px; border-radius: 4px; }
     .fuente-fecha { font-size: 0.9em; color: gray; }
     
-    /* Caja de Análisis IA Dinámico */
     .analisis-ia {
         background-color: #f0f2f6;
         padding: 20px;
@@ -44,10 +43,30 @@ def cargar_motores():
     return SentimentIntensityAnalyzer(), GoogleTranslator(source='auto', target='en')
 analizador, traductor = cargar_motores()
 
-# --- VARIABLES ---
+# --- VARIABLES Y DICCIONARIOS GENERALES ---
 STOP_WORDS = {"el", "la", "los", "las", "un", "una", "de", "del", "a", "en", "y", "o", "que", "por", "para", "con", "se", "su", "sus", "es", "al", "lo", "noticia", "news", "report", "the", "to", "in", "for", "on", "of", "and", "is", "ha", "han", "fue", "sus", "sobre", "este", "esta", "como", "pero", "sin", "mas", "año", "años", "gran", "desde", "hasta", "muy", "nos", "les", "esa", "ese", "eso", "porque", "está", "están", "ser", "parte", "todo", "hace", "donde", "quien", "ayer", "hoy", "mañana", "tras", "durante", "según", "entre", "millones", "ciento", "euros"}
-DICCIONARIO_EXITO = ["dispara", "multiplica", "duplica", "récord", "lidera", "impulsa", "crece", "aumenta", "superávit", "éxito", "logro", "millonaria", "inversión", "skyrocket", "doubles", "record", "leads", "boosts", "grows", "profit", "success", "reducir", "bajar", "control", "sostenible", "avance", "sube", "acuerdo"]
-DICCIONARIO_FRACASO = ["desplome", "caída", "pérdidas", "cierra", "quiebra", "crisis", "ruina", "hundimiento", "peor", "negativo", "recorte", "collapse", "fall", "drop", "loss", "bankruptcy", "dimisión", "protesta", "sequía", "drought", "alerta", "warning"]
+
+# Palabras de ÉXITO (Economía, Avance, Acuerdos)
+DICCIONARIO_EXITO = [
+    "dispara", "multiplica", "duplica", "récord", "lidera", "impulsa", "crece", "aumenta", "superávit", 
+    "éxito", "logro", "millonaria", "inversión", "skyrocket", "doubles", "record", "leads", "boosts", 
+    "grows", "profit", "success", "reducir", "bajar", "control", "sostenible", "avance", "sube", "acuerdo", 
+    "aprobado", "luz verde", "green light", "approved", "milestone"
+]
+
+# Palabras de FRACASO GENERAL (Economía, Sanidad, Legal, Clima)
+DICCIONARIO_FRACASO = [
+    # Economía
+    "desplome", "caída", "pérdidas", "cierra", "quiebra", "crisis", "ruina", "hundimiento", "recorte", "bankruptcy", "collapse",
+    # Sanidad / Plagas (General)
+    "brote", "foco", "plaga", "virus", "bacteria", "infección", "contagio", "enfermedad", "hospitalizado", "outbreak", "virus", "infection",
+    # Mortalidad
+    "muertos", "muerte", "fallecidos", "víctimas", "sacrificio", "cadáveres", "dead", "death", "killed",
+    # Restricciones / Legal
+    "prohibición", "prohibido", "veto", "bloqueo", "restricción", "ilegal", "denuncia", "fraude", "multa", "sanción", "ban", "restriction", "illegal", "fine",
+    # Clima / Desastres
+    "sequía", "granizo", "inundación", "alerta", "emergencia", "drought", "flood", "emergency", "warning"
+]
 
 # --- 4. FUNCIONES LÓGICAS ---
 def analizar_con_inteligencia(texto_original):
@@ -56,10 +75,15 @@ def analizar_con_inteligencia(texto_original):
         score_vader = analizador.polarity_scores(texto_analisis)['compound']
         score_norm = (score_vader + 1) / 2
         texto_low = texto_original.lower()
-        for p in DICCIONARIO_EXITO:
-            if p in texto_low: return max(score_norm, 0.85)
+        
+        # Prioridad 1: Detectar palabras de ALARMA (Fuerza nota baja)
         for p in DICCIONARIO_FRACASO:
             if p in texto_low: return min(score_norm, 0.20)
+            
+        # Prioridad 2: Detectar palabras de ÉXITO (Fuerza nota alta)
+        for p in DICCIONARIO_EXITO:
+            if p in texto_low: return max(score_norm, 0.85)
+            
         return score_norm
     except: return 0.5
 
@@ -73,27 +97,25 @@ def obtener_clima_texto(nota):
     elif nota <= 3.2: return "🔴 NEGATIVO"
     else: return "⚖️ NEUTRO"
 
-# --- GENERADOR DINÁMICO (MODIFICADO PARA FILTRAR BÚSQUEDA) ---
+# --- GENERADOR DINÁMICO ---
 def generar_resumen_dinamico(todas_las_noticias, nota_global, termino_busqueda):
     if not todas_las_noticias: return "No hay datos suficientes."
     
     total = len(todas_las_noticias)
     
-    # 1. Preparar lista de palabras PROHIBIDAS (las de la búsqueda)
-    # Quitamos comillas y pasamos a minúsculas para limpiar
+    # 1. Filtro de palabras prohibidas (búsqueda)
     busqueda_limpia = termino_busqueda.lower().replace('"', '').replace("'", "")
     palabras_busqueda = set(busqueda_limpia.split())
     
-    # 2. Extraer palabras clave reales
+    # 2. Extraer Trending Topics
     texto_completo = " ".join([n['txt'] for n in todas_las_noticias]).lower()
-    texto_completo = re.sub(r'[^\w\s]', '', texto_completo) # Quitar puntuación
+    texto_completo = re.sub(r'[^\w\s]', '', texto_completo) 
     palabras = texto_completo.split()
     
-    # Filtramos: Stopwords + Palabras cortas + PALABRAS DE LA BÚSQUEDA
     palabras_clave = [
         p for p in palabras 
         if p not in STOP_WORDS 
-        and p not in palabras_busqueda # <--- AQUÍ ESTÁ EL FILTRO NUEVO
+        and p not in palabras_busqueda 
         and len(p) > 4
     ]
     
@@ -104,36 +126,36 @@ def generar_resumen_dinamico(todas_las_noticias, nota_global, termino_busqueda):
     if top_3:
         conceptos_str = ", ".join([f"**'{p[0].upper()}'**" for p in top_3])
     else:
-        conceptos_str = "conceptos generales"
+        conceptos_str = "temas generales"
 
-    # 3. Análisis de Polarización
+    # 3. Métricas
     pos = sum(1 for n in todas_las_noticias if n['score'] > 0.65)
     neg = sum(1 for n in todas_las_noticias if n['score'] < 0.4)
     
-    # 4. Redacción del Resumen
+    # 4. Redacción
     mensaje = f"Se han analizado **{total} impactos mediáticos**. "
     
     if nota_global >= 5.5:
         mensaje += "El escenario es **altamente favorable**. La prensa destaca logros y avances significativos. "
     elif nota_global >= 4.5:
-        mensaje += "El clima general es **positivo**, aunque con matices. Predominan las buenas noticias. "
+        mensaje += "El clima general es **positivo**, aunque con matices. "
     elif nota_global <= 2.5:
         mensaje += "Se detecta una **crisis de reputación severa**. El tono mediático es hostil. "
     elif nota_global <= 3.5:
         mensaje += "El entorno es **crítico**. Existen focos de negatividad que requieren atención. "
     else:
-        mensaje += "La situación es de **estabilidad y cautela**. No hay grandes euforias ni crisis graves. "
+        mensaje += "La situación es de **estabilidad y cautela**. "
         
     mensaje += f"Al margen de la búsqueda principal, la conversación pública gira en torno a conceptos como {conceptos_str}. "
     
     if neg == 0 and pos > 0:
-        mensaje += "Es destacable la **ausencia total de noticias negativas** en este periodo."
+        mensaje += "Es destacable la **ausencia total de noticias negativas**."
     elif neg > pos:
-        mensaje += f"⚠️ **Atención:** El volumen de noticias negativas ({neg}) supera al de positivas ({pos}), lo que indica una tendencia a la baja."
+        mensaje += f"⚠️ **Atención:** El volumen de noticias negativas ({neg}) supera al de positivas ({pos})."
     elif pos > neg:
-        mensaje += f"La solidez del tema se confirma con **{pos} noticias positivas** que amortiguan las críticas."
+        mensaje += f"La solidez del tema se confirma con **{pos} noticias positivas**."
     else:
-        mensaje += "Existe una **polarización exacta**: hay tantas noticias positivas como negativas."
+        mensaje += "Existe una **polarización exacta** entre noticias positivas y negativas."
         
     return mensaje
 
@@ -151,7 +173,6 @@ with st.expander("ℹ️ Ayuda y Normas de Búsqueda"):
 
 with st.form("my_form"):
     col1, col2 = st.columns([3, 1])
-    # AQUÍ ESTÁ EL CAMBIO DEL EJEMPLO
     with col1: tema_es = st.text_input("✍️ Tema a analizar:", placeholder="Ej: Agricultura Almería")
     with col2: periodo = st.selectbox("📅 Periodo:", ["24 Horas", "Semana", "Mes", "Año"])
     submitted = st.form_submit_button("🚀 EJECUTAR ANÁLISIS")
@@ -209,10 +230,8 @@ if submitted and tema_es:
             c2.metric("🌍 Internacional", f"{nota_int}/7"); c2.caption(f"**{obtener_clima_texto(nota_int)}**")
             c3.metric("🌐 GLOBAL", f"{nota_glob}/7"); c3.caption(f"**{obtener_clima_texto(nota_glob)}**")
             
-            # --- ANÁLISIS DINÁMICO (FILTRADO) ---
+            # --- ANÁLISIS DINÁMICO ---
             todas = [{"flag": "🌍", **n} for n in noticias_inter] + [{"flag": "🇪🇸", **n} for n in noticias_nac]
-            
-            # Pasamos "tema_es" para filtrar esas palabras
             resumen_ia = generar_resumen_dinamico(todas, nota_glob, tema_es)
             
             st.markdown(f"""
@@ -248,6 +267,7 @@ if submitted and tema_es:
                     st.markdown("---")
         else:
             st.warning("No se encontraron noticias recientes.")
+
 
 
 

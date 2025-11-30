@@ -16,12 +16,12 @@ st.set_page_config(page_title="Analizador de Reputación JCPM", layout="centered
 # --- 2. ESTILOS CSS ---
 st.markdown("""
 <style>
-    /* Ocultar elementos por defecto de Streamlit para limpiar la interfaz */
+    /* Ocultar elementos de Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
-    /* Estilos para las etiquetas de sentimiento */
+    /* Etiquetas de colores */
     .noticia-buena { color: #2e7d32; font-weight: bold; background-color: #e8f5e9; padding: 2px 6px; border-radius: 4px; }
     .noticia-mala { color: #d32f2f; font-weight: bold; background-color: #ffebee; padding: 2px 6px; border-radius: 4px; }
     .noticia-neutra { color: #555; font-weight: bold; background-color: #f5f5f5; padding: 2px 6px; border-radius: 4px; }
@@ -29,7 +29,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. CARGA DE MOTORES DE INTELIGENCIA ---
+# --- 3. CARGA DE MOTORES ---
 @st.cache_resource
 def cargar_motores():
     analizador = SentimentIntensityAnalyzer()
@@ -38,54 +38,58 @@ def cargar_motores():
 
 analizador, traductor = cargar_motores()
 
-# --- VARIABLES Y DICCIONARIOS ---
+# --- VARIABLES ---
 STOP_WORDS = {"el", "la", "los", "las", "un", "una", "de", "del", "a", "en", "y", "o", "que", "por", "para", "con", "se", "su", "sus", "es", "al", "lo", "noticia", "news", "report", "the", "to", "in", "for", "on", "of"}
-# Palabras que fuerzan una nota positiva
 DICCIONARIO_EXITO = ["dispara", "multiplica", "duplica", "récord", "lidera", "impulsa", "crece", "aumenta", "superávit", "éxito", "logro", "millonaria", "inversión", "skyrocket", "doubles", "record", "leads", "boosts", "grows", "profit", "success", "reducir", "bajar", "control", "sostenible", "avance", "sube", "acuerdo"]
-# Palabras que fuerzan una nota negativa
 DICCIONARIO_FRACASO = ["desplome", "caída", "pérdidas", "cierra", "quiebra", "crisis", "ruina", "hundimiento", "peor", "negativo", "recorte", "collapse", "fall", "drop", "loss", "bankruptcy", "dimisión", "protesta"]
 
 # --- 4. FUNCIONES LÓGICAS ---
 def analizar_con_inteligencia(texto_original):
     try:
-        # 1. Análisis de sentimiento base (VADER traducido)
         texto_analisis = traductor.translate(texto_original)
         score_vader = analizador.polarity_scores(texto_analisis)['compound']
         score_norm = (score_vader + 1) / 2 # Normalizar a 0-1
 
-        # 2. Corrección por Diccionario Económico/Político
         texto_low = texto_original.lower()
         for p in DICCIONARIO_EXITO:
-            if p in texto_low: return max(score_norm, 0.85) # Fuerza positivo
+            if p in texto_low: return max(score_norm, 0.85)
         for p in DICCIONARIO_FRACASO:
-            if p in texto_low: return min(score_norm, 0.20) # Fuerza negativo
+            if p in texto_low: return min(score_norm, 0.20)
         
         return score_norm
     except:
-        return 0.5 # Neutro en caso de error
+        return 0.5
 
 def limpiar_texto_profundo(texto):
-    """Elimina cualquier rastro de HTML y caracteres raros"""
     txt = html.unescape(texto)
-    txt = re.sub(r'<[^>]+>', '', txt) # Regex para borrar tags HTML
+    txt = re.sub(r'<[^>]+>', '', txt)
     return " ".join(txt.split())
 
 def obtener_clima_texto(nota):
-    """Devuelve el texto y el icono según la nota media"""
     if nota >= 4.8: return "🟢 POSITIVO"
     elif nota <= 3.2: return "🔴 NEGATIVO"
     else: return "⚖️ NEUTRO"
 
 # --- 5. INTERFAZ GRÁFICA ---
 st.title("🌍 Monitor de Inteligencia Global")
-# Descripción mejorada y Copyright
 st.markdown("Sistema avanzado para medir la **reputación** y el **sentimiento** de cualquier tema en prensa **Nacional** (España) e **Internacional** (Global) en tiempo real.")
 st.caption("© JCPM - 2025")
+
+# --- BLOQUE DE AYUDA (NUEVO) ---
+with st.expander("ℹ️ Ayuda y Normas de Búsqueda"):
+    st.markdown("""
+    **Guía rápida para mejorar tus resultados:**
+    * **Búsqueda Literal:** Usa comillas dobles `""` para buscar una frase exacta.
+        * *Ejemplo:* `"Crisis del pepino"` buscará exactamente esa frase seguida.
+    * **Palabras Clave:** Si no usas comillas, es mejor usar palabras sueltas clave.
+        * *Ejemplo:* `Invernaderos Almería` funciona mejor que `Cómo están los invernaderos de Almería`.
+    * **Traducción Automática:** El sistema traducirá tu búsqueda al inglés automáticamente manteniendo el criterio de las comillas.
+    """)
 
 with st.form("my_form"):
     col1, col2 = st.columns([3, 1])
     with col1:
-        tema_es = st.text_input("✍️ Tema a analizar:", placeholder="Ej: Invernaderos Almería")
+        tema_es = st.text_input("✍️ Tema a analizar:", placeholder="Ej: \"Plan Hidrológico\"")
     with col2:
         periodo = st.selectbox("📅 Periodo:", ["24 Horas", "Semana", "Mes", "Año"])
     
@@ -94,23 +98,35 @@ with st.form("my_form"):
 if submitted and tema_es:
     with st.spinner('Escaneando satélites de noticias...'):
         
-        # A. TRADUCCIÓN AUTOMÁTICA
+        # A. TRADUCCIÓN INTELIGENTE (Detecta si hay comillas)
         try:
-            tema_en = traductor.translate(tema_es)
+            # 1. Detectamos si el usuario quiere búsqueda literal
+            es_literal = '"' in tema_es
+            
+            # 2. Traducimos el texto limpio (sin comillas para que el traductor no falle)
+            texto_limpio = tema_es.replace('"', '')
+            tema_en_raw = traductor.translate(texto_limpio)
+            
+            # 3. Si era literal, volvemos a poner comillas en inglés
+            if es_literal:
+                tema_en = f'"{tema_en_raw}"'
+            else:
+                tema_en = tema_en_raw
+                
             st.info(f"🔎 Rastreando objetivos: 🇪🇸 **{tema_es}** | 🌍 **{tema_en}**")
         except:
             tema_en = tema_es
 
-        # B. CÁLCULO DE FECHAS
+        # B. FECHAS
         ahora = datetime.now()
         dias_map = {"24 Horas": 1, "Semana": 7, "Mes": 30, "Año": 365}
         fecha_limite = ahora - timedelta(days=dias_map[periodo])
 
-        # C. BÚSQUEDA Y ANÁLISIS RSS
+        # C. BÚSQUEDA RSS
         noticias_inter = []
         noticias_nac = []
         
-        # --- MOTOR INTERNACIONAL (EN) ---
+        # --- MOTOR INTERNACIONAL ---
         url_en = f"https://news.google.com/rss/search?q={urllib.parse.quote(tema_en)}&hl=en-US&gl=US&ceid=US:en"
         feed_en = feedparser.parse(url_en)
         for entry in feed_en.entries:
@@ -125,7 +141,7 @@ if submitted and tema_es:
                         score = analizar_con_inteligencia(txt)
                         noticias_inter.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Intl", "fecha": fecha, "score": score, "link": link})
 
-        # --- MOTOR NACIONAL (ES) ---
+        # --- MOTOR NACIONAL ---
         url_es = f"https://news.google.com/rss/search?q={urllib.parse.quote(tema_es)}&hl=es-419&gl=ES&ceid=ES:es-419"
         feed_es = feedparser.parse(url_es)
         for entry in feed_es.entries:
@@ -140,10 +156,9 @@ if submitted and tema_es:
                         score = analizar_con_inteligencia(txt)
                         noticias_nac.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Nac", "fecha": fecha, "score": score, "link": link})
 
-        # D. VISUALIZACIÓN DE RESULTADOS
+        # D. RESULTADOS
         if noticias_inter or noticias_nac:
             
-            # Función auxiliar para nota de 1 a 7
             def calc_7(lista):
                 if not lista: return 0
                 prom = statistics.mean([x['score'] for x in lista])
@@ -153,7 +168,7 @@ if submitted and tema_es:
             nota_nac = calc_7(noticias_nac)
             nota_glob = calc_7(noticias_inter + noticias_nac)
 
-            # --- CUADRO DE MANDO (MÉTRICAS) ---
+            # --- MÉTRICAS ---
             st.divider()
             txt_nac = obtener_clima_texto(nota_nac)
             txt_int = obtener_clima_texto(nota_int)
@@ -169,7 +184,7 @@ if submitted and tema_es:
 
             st.divider()
 
-            # --- LISTADO DETALLADO ---
+            # --- LISTADO ---
             st.subheader("📝 Detalle de Noticias")
 
             todas = []
@@ -190,12 +205,9 @@ if submitted and tema_es:
                     clase_css = "noticia-neutra"
 
                 f_str = n['fecha'].strftime("%d/%m")
-                # Recorte de texto para el resumen
                 texto_corto = (n['txt'][:180] + '...') if len(n['txt']) > 180 else n['txt']
 
-                # TARJETA DE NOTICIA
                 with st.container():
-                    # Cabecera con metadatos y etiqueta de color
                     st.markdown(f"""
                     <div style="margin-bottom: 5px; display: flex; align-items: center; justify-content: space-between;">
                         <div>
@@ -206,13 +218,9 @@ if submitted and tema_es:
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Cuerpo de texto limpio en caja azul
                     st.info(texto_corto)
-                    
-                    # Botón oficial de enlace
                     st.link_button("🔗 Leer noticia completa", n['link'])
-                    
-                    st.markdown("---") # Separador visual
+                    st.markdown("---")
 
         else:
             st.warning("No se encontraron noticias recientes que coincidan con el análisis.")

@@ -12,7 +12,7 @@ import html
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Analizador de Reputación", layout="centered")
 
-# --- ESTILOS CSS (Para que quede bonito) ---
+# --- ESTILOS CSS ---
 st.markdown("""
 <style>
     .stExpander { border: 1px solid #ddd; border-radius: 5px; }
@@ -20,6 +20,7 @@ st.markdown("""
     .noticia-mala { color: #d32f2f; font-weight: bold; }
     .noticia-neutra { color: #555; font-weight: bold; }
     .fuente-fecha { font-size: 0.9em; color: #666; }
+    .metric-label { font-size: 1.2rem; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -32,7 +33,6 @@ def cargar_motores():
 
 analizador, traductor = cargar_motores()
 
-# Listas de palabras clave
 STOP_WORDS = {"el", "la", "los", "las", "un", "una", "de", "del", "a", "en", "y", "o", "que", "por", "para", "con", "se", "su", "sus", "es", "al", "lo", "noticia", "news", "report", "the", "to", "in", "for", "on", "of"}
 DICCIONARIO_EXITO = ["dispara", "multiplica", "duplica", "récord", "lidera", "impulsa", "crece", "aumenta", "superávit", "éxito", "logro", "millonaria", "inversión", "skyrocket", "doubles", "record", "leads", "boosts", "grows", "profit", "success", "reducir", "bajar", "control"]
 DICCIONARIO_FRACASO = ["desplome", "caída", "pérdidas", "cierra", "quiebra", "crisis", "ruina", "hundimiento", "peor", "negativo", "recorte", "collapse", "fall", "drop", "loss", "bankruptcy"]
@@ -56,6 +56,15 @@ def analizar_con_inteligencia(texto_original):
 
 def limpiar_html(texto):
     return html.unescape(texto).replace('<b>', '').replace('</b>', '').replace('...', '')
+
+# Función para obtener texto y color del clima
+def obtener_clima_texto(nota):
+    if nota >= 4.8:
+        return "🟢 POSITIVO", "normal" # Verde por defecto en streamlit metric
+    elif nota <= 3.2:
+        return "🔴 NEGATIVO", "inverse" # Rojo
+    else:
+        return "⚖️ NEUTRO", "off" # Gris
 
 # --- INTERFAZ ---
 st.title("🌍 Monitor de Inteligencia Global")
@@ -125,14 +134,29 @@ if submitted and tema_es:
             nota_nac = calc_7(noticias_nac)
             nota_glob = calc_7(noticias_inter + noticias_nac)
 
-            # MÉTRICAS
-            col1, col2, col3 = st.columns(3)
-            col1.metric("🇪🇸 Nacional", f"{nota_nac}/7")
-            col2.metric("🌍 Internacional", f"{nota_int}/7")
-            col3.metric("🌐 GLOBAL", f"{nota_glob}/7", delta="Positivo" if nota_glob>=5 else "Negativo")
-
-            # LISTADO DETALLADO
+            # --- MÉTRICAS (CORREGIDAS) ---
             st.divider()
+            
+            # Calculamos los textos para cada uno
+            txt_nac, color_nac = obtener_clima_texto(nota_nac)
+            txt_int, color_int = obtener_clima_texto(nota_int)
+            txt_glob, color_glob = obtener_clima_texto(nota_glob)
+
+            col1, col2, col3 = st.columns(3)
+            
+            # Mostramos las métricas con su veredicto debajo
+            col1.metric("🇪🇸 Nacional", f"{nota_nac}/7", help="Nota basada en prensa española")
+            col1.caption(f"**{txt_nac}**")
+            
+            col2.metric("🌍 Internacional", f"{nota_int}/7", help="Nota basada en prensa extranjera")
+            col2.caption(f"**{txt_int}**")
+            
+            col3.metric("🌐 GLOBAL", f"{nota_glob}/7", help="Media ponderada total")
+            col3.caption(f"**{txt_glob}**")
+
+            st.divider()
+
+            # --- LISTADO DETALLADO ---
             st.subheader("📝 Detalle de Noticias")
 
             # Unimos y ordenamos
@@ -142,7 +166,6 @@ if submitted and tema_es:
             todas.sort(key=lambda x: x['fecha'], reverse=True)
 
             for n in todas:
-                # LOGICA DE ETIQUETAS (LO QUE PEDISTE)
                 score = n['score']
                 if score > 0.65:
                     etiqueta = "🟢 BUENA"
@@ -154,14 +177,10 @@ if submitted and tema_es:
                     etiqueta = "⚪ NEUTRA"
                     clase_css = "noticia-neutra"
 
-                # Formato de fecha y texto corto
                 f_str = n['fecha'].strftime("%d/%m")
-                # Recortamos texto a 120 caracteres para que no ocupe mucho
                 texto_corto = (n['txt'][:120] + '...') if len(n['txt']) > 120 else n['txt']
 
-                # VISUALIZACIÓN TIPO TARJETA
                 with st.container():
-                    # Línea 1: Metadatos y Valoración
                     st.markdown(f"""
                     <div style="margin-top: 10px;">
                         <span style="font-size:1.2em;">{n['flag']}</span> 
@@ -169,10 +188,9 @@ if submitted and tema_es:
                         <span style="float:right;" class="{clase_css}">{etiqueta} ({score:.2f})</span>
                     </div>
                     """, unsafe_allow_html=True)
-                    
-                    # Línea 2: El texto de la noticia
                     st.info(texto_corto)
 
         else:
             st.warning("No se encontraron noticias recientes.")
+
 

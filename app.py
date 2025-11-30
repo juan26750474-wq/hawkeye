@@ -1,4 +1,4 @@
- import streamlit as st
+import streamlit as st
 import feedparser
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from deep_translator import GoogleTranslator
@@ -175,3 +175,4 @@ if submitted and tema_es:
 
         else:
             st.warning("No se encontraron noticias recientes.")
+

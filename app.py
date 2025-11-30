@@ -12,19 +12,23 @@ import html
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Analizador de Reputación", layout="centered")
 
-# --- 2. ESTILOS CSS (LIMPIEZA VISUAL + COLORES) ---
+# --- 2. ESTILOS CSS ---
 hide_streamlit_style = """
             <style>
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             header {visibility: hidden;}
             
-            /* Estilos para las noticias */
+            /* Estilos */
             .stExpander { border: 1px solid #ddd; border-radius: 5px; }
             .noticia-buena { color: #2e7d32; font-weight: bold; }
             .noticia-mala { color: #d32f2f; font-weight: bold; }
             .noticia-neutra { color: #555; font-weight: bold; }
             .fuente-fecha { font-size: 0.9em; color: #666; }
+            
+            /* Enlace estilizado */
+            a { text-decoration: none; font-weight: bold; color: #0068c9 !important; }
+            a:hover { text-decoration: underline; }
             </style>
             """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
@@ -40,18 +44,16 @@ analizador, traductor = cargar_motores()
 
 # Listas de palabras clave
 STOP_WORDS = {"el", "la", "los", "las", "un", "una", "de", "del", "a", "en", "y", "o", "que", "por", "para", "con", "se", "su", "sus", "es", "al", "lo", "noticia", "news", "report", "the", "to", "in", "for", "on", "of"}
-DICCIONARIO_EXITO = ["dispara", "multiplica", "duplica", "récord", "lidera", "impulsa", "crece", "aumenta", "superávit", "éxito", "logro", "millonaria", "inversión", "skyrocket", "doubles", "record", "leads", "boosts", "grows", "profit", "success", "reducir", "bajar", "control", "sostenible", "avance"]
+DICCIONARIO_EXITO = ["dispara", "multiplica", "duplica", "récord", "lidera", "impulsa", "crece", "aumenta", "superávit", "éxito", "logro", "millonaria", "inversión", "skyrocket", "doubles", "record", "leads", "boosts", "grows", "profit", "success", "reducir", "bajar", "control", "sostenible", "avance", "sube"]
 DICCIONARIO_FRACASO = ["desplome", "caída", "pérdidas", "cierra", "quiebra", "crisis", "ruina", "hundimiento", "peor", "negativo", "recorte", "collapse", "fall", "drop", "loss", "bankruptcy"]
 
 # --- 4. FUNCIONES LÓGICAS ---
 def analizar_con_inteligencia(texto_original):
     try:
-        # Paso 1: Traducción y VADER (Base)
         texto_analisis = traductor.translate(texto_original)
         score_vader = analizador.polarity_scores(texto_analisis)['compound']
         score_norm = (score_vader + 1) / 2
 
-        # Paso 2: Corrección por Diccionario (La Lupa Humana)
         texto_low = texto_original.lower()
         for p in DICCIONARIO_EXITO:
             if p in texto_low: return max(score_norm, 0.85)
@@ -66,12 +68,9 @@ def limpiar_html(texto):
     return html.unescape(texto).replace('<b>', '').replace('</b>', '').replace('...', '')
 
 def obtener_clima_texto(nota):
-    if nota >= 4.8:
-        return "🟢 POSITIVO"
-    elif nota <= 3.2:
-        return "🔴 NEGATIVO"
-    else:
-        return "⚖️ NEUTRO"
+    if nota >= 4.8: return "🟢 POSITIVO"
+    elif nota <= 3.2: return "🔴 NEGATIVO"
+    else: return "⚖️ NEUTRO"
 
 # --- 5. INTERFAZ GRÁFICA ---
 st.title("🌍 Monitor de Inteligencia Global")
@@ -113,9 +112,10 @@ if submitted and tema_es:
                 fecha = datetime.fromtimestamp(mktime(entry.published_parsed))
                 if fecha >= fecha_limite:
                     txt = limpiar_html(f"{entry.title}. {entry.description}")
+                    link = entry.link # Capturamos el enlace
                     if len(txt) > 10:
                         score = analizar_con_inteligencia(txt)
-                        noticias_inter.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Intl", "fecha": fecha, "score": score})
+                        noticias_inter.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Intl", "fecha": fecha, "score": score, "link": link})
 
         # --- NACIONAL ---
         url_es = f"https://news.google.com/rss/search?q={urllib.parse.quote(tema_es)}&hl=es-419&gl=ES&ceid=ES:es-419"
@@ -125,9 +125,10 @@ if submitted and tema_es:
                 fecha = datetime.fromtimestamp(mktime(entry.published_parsed))
                 if fecha >= fecha_limite:
                     txt = limpiar_html(f"{entry.title}. {entry.description}")
+                    link = entry.link # Capturamos el enlace
                     if len(txt) > 10:
                         score = analizar_con_inteligencia(txt)
-                        noticias_nac.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Nac", "fecha": fecha, "score": score})
+                        noticias_nac.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Nac", "fecha": fecha, "score": score, "link": link})
 
         # D. RESULTADOS
         if noticias_inter or noticias_nac:
@@ -183,7 +184,11 @@ if submitted and tema_es:
                     clase_css = "noticia-neutra"
 
                 f_str = n['fecha'].strftime("%d/%m")
+                # Recortamos texto visualmente
                 texto_corto = (n['txt'][:120] + '...') if len(n['txt']) > 120 else n['txt']
+                
+                # AÑADIMOS EL ENLACE AL FINAL DEL TEXTO
+                texto_con_enlace = f"{texto_corto} [**Leer noticia >**]({n['link']})"
 
                 # Tarjeta de noticia
                 with st.container():
@@ -194,8 +199,9 @@ if submitted and tema_es:
                         <span style="float:right;" class="{clase_css}">{etiqueta} ({score:.2f})</span>
                     </div>
                     """, unsafe_allow_html=True)
-                    st.info(texto_corto)
+                    st.info(texto_con_enlace) # Streamlit procesa el markdown del enlace aquí
 
         else:
             st.warning("No se encontraron noticias recientes sobre este tema.")
+
 

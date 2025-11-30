@@ -19,12 +19,21 @@ hide_streamlit_style = """
             footer {visibility: hidden;}
             header {visibility: hidden;}
             
-            /* Estilos */
+            /* Estilos de las tarjetas */
             .stExpander { border: 1px solid #ddd; border-radius: 5px; }
             .noticia-buena { color: #2e7d32; font-weight: bold; }
             .noticia-mala { color: #d32f2f; font-weight: bold; }
             .noticia-neutra { color: #555; font-weight: bold; }
             .fuente-fecha { font-size: 0.9em; color: #666; }
+            
+            /* Estilo del icono de enlace */
+            .icon-link { 
+                text-decoration: none; 
+                margin-left: 8px; 
+                font-size: 1.1em;
+                cursor: pointer;
+            }
+            .icon-link:hover { opacity: 0.6; }
             </style>
             """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
@@ -108,7 +117,6 @@ if submitted and tema_es:
                 fecha = datetime.fromtimestamp(mktime(entry.published_parsed))
                 if fecha >= fecha_limite:
                     txt = limpiar_html(f"{entry.title}. {entry.description}")
-                    # Capturamos LINK de forma segura
                     link = getattr(entry, 'link', '#')
                     if len(txt) > 10:
                         score = analizar_con_inteligencia(txt)
@@ -122,7 +130,6 @@ if submitted and tema_es:
                 fecha = datetime.fromtimestamp(mktime(entry.published_parsed))
                 if fecha >= fecha_limite:
                     txt = limpiar_html(f"{entry.title}. {entry.description}")
-                    # Capturamos LINK de forma segura
                     link = getattr(entry, 'link', '#')
                     if len(txt) > 10:
                         score = analizar_con_inteligencia(txt)
@@ -183,20 +190,20 @@ if submitted and tema_es:
                 f_str = n['fecha'].strftime("%d/%m")
                 texto_corto = (n['txt'][:120] + '...') if len(n['txt']) > 120 else n['txt']
                 
-                # --- VISUALIZACIÓN CORREGIDA (MARKDOWN PURO) ---
-                # Usamos \n\n para saltar de línea dentro del markdown
-                texto_final_con_enlace = f"{texto_corto}\n\n**[🔗 Leer noticia original >]({n['link']})**"
-
+                # --- VISUALIZACIÓN LIMPIA ---
                 with st.container():
+                    # Aquí inyectamos el HTML del enlace (<a>) directamente al lado de la fuente
                     st.markdown(f"""
                     <div style="margin-top: 10px;">
                         <span style="font-size:1.2em;">{n['flag']}</span> 
                         <span class="fuente-fecha">[{f_str}] <b>{n['fuente']}</b></span>
+                        <a href="{n['link']}" target="_blank" class="icon-link" title="Ir a la noticia">🔗</a>
                         <span style="float:right;" class="{clase_css}">{etiqueta} ({score:.2f})</span>
                     </div>
                     """, unsafe_allow_html=True)
-                    # Aquí es donde ocurre la magia: st.info entiende markdown [Texto](URL)
-                    st.info(texto_final_con_enlace)
+                    
+                    # El cuadro azul SOLO lleva el texto, ya no lleva el enlace
+                    st.info(texto_corto)
 
         else:
             st.warning("No se encontraron noticias recientes sobre este tema.")

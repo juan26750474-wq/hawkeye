@@ -8,35 +8,20 @@ from datetime import datetime, timedelta
 from time import mktime
 import string
 import html
+import re
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Analizador de Reputación", layout="centered")
 
-# --- 2. ESTILOS CSS ---
-hide_streamlit_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
-            
-            /* Estilos de las tarjetas */
-            .stExpander { border: 1px solid #ddd; border-radius: 5px; }
-            .noticia-buena { color: #2e7d32; font-weight: bold; }
-            .noticia-mala { color: #d32f2f; font-weight: bold; }
-            .noticia-neutra { color: #555; font-weight: bold; }
-            .fuente-fecha { font-size: 0.9em; color: #666; }
-            
-            /* Estilo del icono de enlace */
-            .icon-link { 
-                text-decoration: none; 
-                margin-left: 8px; 
-                font-size: 1.1em;
-                cursor: pointer;
-            }
-            .icon-link:hover { opacity: 0.6; }
-            </style>
-            """
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+# --- 2. ESTILOS CSS (SOLO PARA ETIQUETAS DE COLOR) ---
+st.markdown("""
+<style>
+    .noticia-buena { color: #2e7d32; font-weight: bold; padding: 2px 8px; border-radius: 4px; background-color: #e8f5e9; }
+    .noticia-mala { color: #d32f2f; font-weight: bold; padding: 2px 8px; border-radius: 4px; background-color: #ffebee; }
+    .noticia-neutra { color: #555; font-weight: bold; padding: 2px 8px; border-radius: 4px; background-color: #f5f5f5; }
+    .fuente-fecha { font-size: 0.9em; color: gray; }
+</style>
+""", unsafe_allow_html=True)
 
 # --- 3. CARGA DE MOTORES ---
 @st.cache_resource
@@ -69,8 +54,13 @@ def analizar_con_inteligencia(texto_original):
     except:
         return 0.5
 
-def limpiar_html(texto):
-    return html.unescape(texto).replace('<b>', '').replace('</b>', '').replace('...', '')
+def limpiar_texto_profundo(texto):
+    # 1. Decodificar HTML (&nbsp;, &amp;, etc)
+    txt = html.unescape(texto)
+    # 2. Quitar etiquetas HTML (<br>, <b>, etc)
+    txt = re.sub(r'<[^>]+>', '', txt)
+    # 3. Quitar espacios extra
+    return " ".join(txt.split())
 
 def obtener_clima_texto(nota):
     if nota >= 4.8: return "🟢 POSITIVO"
@@ -116,8 +106,11 @@ if submitted and tema_es:
             if hasattr(entry, 'published_parsed'):
                 fecha = datetime.fromtimestamp(mktime(entry.published_parsed))
                 if fecha >= fecha_limite:
-                    txt = limpiar_html(f"{entry.title}. {entry.description}")
+                    # Usamos TITLE + DESCRIPTION para tener más texto
+                    raw_txt = f"{entry.title}. {entry.description}"
+                    txt = limpiar_texto_profundo(raw_txt)
                     link = getattr(entry, 'link', '#')
+                    
                     if len(txt) > 10:
                         score = analizar_con_inteligencia(txt)
                         noticias_inter.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Intl", "fecha": fecha, "score": score, "link": link})
@@ -129,8 +122,10 @@ if submitted and tema_es:
             if hasattr(entry, 'published_parsed'):
                 fecha = datetime.fromtimestamp(mktime(entry.published_parsed))
                 if fecha >= fecha_limite:
-                    txt = limpiar_html(f"{entry.title}. {entry.description}")
+                    raw_txt = f"{entry.title}. {entry.description}"
+                    txt = limpiar_texto_profundo(raw_txt)
                     link = getattr(entry, 'link', '#')
+                    
                     if len(txt) > 10:
                         score = analizar_con_inteligencia(txt)
                         noticias_nac.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Nac", "fecha": fecha, "score": score, "link": link})
@@ -149,19 +144,15 @@ if submitted and tema_es:
 
             # --- SECCIÓN DE MÉTRICAS ---
             st.divider()
-            
             txt_nac = obtener_clima_texto(nota_nac)
             txt_int = obtener_clima_texto(nota_int)
             txt_glob = obtener_clima_texto(nota_glob)
 
             col1, col2, col3 = st.columns(3)
-            
             col1.metric("🇪🇸 Nacional", f"{nota_nac}/7")
             col1.caption(f"**{txt_nac}**")
-            
             col2.metric("🌍 Internacional", f"{nota_int}/7")
             col2.caption(f"**{txt_int}**")
-            
             col3.metric("🌐 GLOBAL", f"{nota_glob}/7")
             col3.caption(f"**{txt_glob}**")
 
@@ -188,22 +179,28 @@ if submitted and tema_es:
                     clase_css = "noticia-neutra"
 
                 f_str = n['fecha'].strftime("%d/%m")
-                texto_corto = (n['txt'][:120] + '...') if len(n['txt']) > 120 else n['txt']
+                # Texto más largo (200 caracteres) para entender mejor la noticia
+                texto_largo = (n['txt'][:200] + '...') if len(n['txt']) > 200 else n['txt']
                 
-                # --- VISUALIZACIÓN LIMPIA ---
+                # --- DISEÑO ROBUSTO ---
                 with st.container():
-                    # Aquí inyectamos el HTML del enlace (<a>) directamente al lado de la fuente
+                    # 1. Cabecera con metadatos y nota
                     st.markdown(f"""
-                    <div style="margin-top: 10px;">
+                    <div style="margin-bottom: 5px;">
                         <span style="font-size:1.2em;">{n['flag']}</span> 
                         <span class="fuente-fecha">[{f_str}] <b>{n['fuente']}</b></span>
-                        <a href="{n['link']}" target="_blank" class="icon-link" title="Ir a la noticia">🔗</a>
                         <span style="float:right;" class="{clase_css}">{etiqueta} ({score:.2f})</span>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # El cuadro azul SOLO lleva el texto, ya no lleva el enlace
-                    st.info(texto_corto)
+                    # 2. Cuerpo de texto (Sin enlaces dentro para no romperlo)
+                    st.info(texto_largo)
+
+                    # 3. Enlace FUERA del cuadro azul (Funciona siempre)
+                    st.markdown(f"👉 [Leer noticia original en **{n['fuente']}**]({n['link']})")
+                    
+                    st.write("") # Espacio en blanco
+                    st.divider() # Línea separadora
 
         else:
             st.warning("No se encontraron noticias recientes sobre este tema.")

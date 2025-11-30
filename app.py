@@ -73,21 +73,30 @@ def obtener_clima_texto(nota):
     elif nota <= 3.2: return "🔴 NEGATIVO"
     else: return "⚖️ NEUTRO"
 
-# --- NUEVA FUNCIÓN: GENERADOR DINÁMICO REAL ---
-def generar_resumen_dinamico(todas_las_noticias, nota_global):
+# --- GENERADOR DINÁMICO (MODIFICADO PARA FILTRAR BÚSQUEDA) ---
+def generar_resumen_dinamico(todas_las_noticias, nota_global, termino_busqueda):
     if not todas_las_noticias: return "No hay datos suficientes."
     
     total = len(todas_las_noticias)
     
-    # 1. Extraer palabras clave reales (Trending Topics)
-    texto_completo = " ".join([n['txt'] for n in todas_las_noticias]).lower()
-    # Limpiamos signos de puntuación
-    texto_completo = re.sub(r'[^\w\s]', '', texto_completo)
-    palabras = texto_completo.split()
-    # Filtramos palabras vacías y cortas
-    palabras_clave = [p for p in palabras if p not in STOP_WORDS and len(p) > 4]
+    # 1. Preparar lista de palabras PROHIBIDAS (las de la búsqueda)
+    # Quitamos comillas y pasamos a minúsculas para limpiar
+    busqueda_limpia = termino_busqueda.lower().replace('"', '').replace("'", "")
+    palabras_busqueda = set(busqueda_limpia.split())
     
-    # Buscamos las 3 más repetidas
+    # 2. Extraer palabras clave reales
+    texto_completo = " ".join([n['txt'] for n in todas_las_noticias]).lower()
+    texto_completo = re.sub(r'[^\w\s]', '', texto_completo) # Quitar puntuación
+    palabras = texto_completo.split()
+    
+    # Filtramos: Stopwords + Palabras cortas + PALABRAS DE LA BÚSQUEDA
+    palabras_clave = [
+        p for p in palabras 
+        if p not in STOP_WORDS 
+        and p not in palabras_busqueda # <--- AQUÍ ESTÁ EL FILTRO NUEVO
+        and len(p) > 4
+    ]
+    
     conteo = Counter(palabras_clave)
     top_3 = conteo.most_common(3)
     
@@ -95,16 +104,15 @@ def generar_resumen_dinamico(todas_las_noticias, nota_global):
     if top_3:
         conceptos_str = ", ".join([f"**'{p[0].upper()}'**" for p in top_3])
     else:
-        conceptos_str = "temas generales"
+        conceptos_str = "conceptos generales"
 
-    # 2. Análisis de Polarización
+    # 3. Análisis de Polarización
     pos = sum(1 for n in todas_las_noticias if n['score'] > 0.65)
     neg = sum(1 for n in todas_las_noticias if n['score'] < 0.4)
     
-    # 3. Construcción del Relato (Storytelling)
+    # 4. Redacción del Resumen
     mensaje = f"Se han analizado **{total} impactos mediáticos**. "
     
-    # Frase de Sentimiento
     if nota_global >= 5.5:
         mensaje += "El escenario es **altamente favorable**. La prensa destaca logros y avances significativos. "
     elif nota_global >= 4.5:
@@ -116,10 +124,8 @@ def generar_resumen_dinamico(todas_las_noticias, nota_global):
     else:
         mensaje += "La situación es de **estabilidad y cautela**. No hay grandes euforias ni crisis graves. "
         
-    # Frase de Conceptos
-    mensaje += f"La conversación pública gira en torno a conceptos clave como {conceptos_str}. "
+    mensaje += f"Al margen de la búsqueda principal, la conversación pública gira en torno a conceptos como {conceptos_str}. "
     
-    # Frase de Balance
     if neg == 0 and pos > 0:
         mensaje += "Es destacable la **ausencia total de noticias negativas** en este periodo."
     elif neg > pos:
@@ -145,7 +151,8 @@ with st.expander("ℹ️ Ayuda y Normas de Búsqueda"):
 
 with st.form("my_form"):
     col1, col2 = st.columns([3, 1])
-    with col1: tema_es = st.text_input("✍️ Tema a analizar:", placeholder="Ej: Tomate Almería")
+    # AQUÍ ESTÁ EL CAMBIO DEL EJEMPLO
+    with col1: tema_es = st.text_input("✍️ Tema a analizar:", placeholder="Ej: Agricultura Almería")
     with col2: periodo = st.selectbox("📅 Periodo:", ["24 Horas", "Semana", "Mes", "Año"])
     submitted = st.form_submit_button("🚀 EJECUTAR ANÁLISIS")
 
@@ -202,10 +209,11 @@ if submitted and tema_es:
             c2.metric("🌍 Internacional", f"{nota_int}/7"); c2.caption(f"**{obtener_clima_texto(nota_int)}**")
             c3.metric("🌐 GLOBAL", f"{nota_glob}/7"); c3.caption(f"**{obtener_clima_texto(nota_glob)}**")
             
-            # --- ANÁLISIS DINÁMICO (REALMENTE INTELIGENTE) ---
+            # --- ANÁLISIS DINÁMICO (FILTRADO) ---
             todas = [{"flag": "🌍", **n} for n in noticias_inter] + [{"flag": "🇪🇸", **n} for n in noticias_nac]
             
-            resumen_ia = generar_resumen_dinamico(todas, nota_glob)
+            # Pasamos "tema_es" para filtrar esas palabras
+            resumen_ia = generar_resumen_dinamico(todas, nota_glob, tema_es)
             
             st.markdown(f"""
             <div class="analisis-ia">

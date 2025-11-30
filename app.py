@@ -19,16 +19,22 @@ hide_streamlit_style = """
             footer {visibility: hidden;}
             header {visibility: hidden;}
             
-            /* Estilos */
+            /* Estilos de las tarjetas */
             .stExpander { border: 1px solid #ddd; border-radius: 5px; }
             .noticia-buena { color: #2e7d32; font-weight: bold; }
             .noticia-mala { color: #d32f2f; font-weight: bold; }
             .noticia-neutra { color: #555; font-weight: bold; }
             .fuente-fecha { font-size: 0.9em; color: #666; }
             
-            /* Enlace estilizado */
-            a.link-icono { text-decoration: none; font-size: 1.2em; margin-left: 5px; }
-            a.link-icono:hover { opacity: 0.7; }
+            /* Estilo del enlace para asegurar que se vea */
+            .mi-enlace { 
+                text-decoration: none; 
+                color: #0068c9 !important; 
+                font-weight: bold;
+                font-size: 0.9em;
+                margin-left: 8px;
+            }
+            .mi-enlace:hover { text-decoration: underline; color: #004b91 !important; }
             </style>
             """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
@@ -112,7 +118,8 @@ if submitted and tema_es:
                 fecha = datetime.fromtimestamp(mktime(entry.published_parsed))
                 if fecha >= fecha_limite:
                     txt = limpiar_html(f"{entry.title}. {entry.description}")
-                    link = entry.link # Capturamos LINK
+                    # Captura robusta del enlace
+                    link = getattr(entry, 'link', '#')
                     if len(txt) > 10:
                         score = analizar_con_inteligencia(txt)
                         noticias_inter.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Intl", "fecha": fecha, "score": score, "link": link})
@@ -125,7 +132,8 @@ if submitted and tema_es:
                 fecha = datetime.fromtimestamp(mktime(entry.published_parsed))
                 if fecha >= fecha_limite:
                     txt = limpiar_html(f"{entry.title}. {entry.description}")
-                    link = entry.link # Capturamos LINK
+                    # Captura robusta del enlace
+                    link = getattr(entry, 'link', '#')
                     if len(txt) > 10:
                         score = analizar_con_inteligencia(txt)
                         noticias_nac.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Nac", "fecha": fecha, "score": score, "link": link})
@@ -185,13 +193,13 @@ if submitted and tema_es:
                 f_str = n['fecha'].strftime("%d/%m")
                 texto_corto = (n['txt'][:120] + '...') if len(n['txt']) > 120 else n['txt']
                 
-                # --- VISUALIZACIÓN CON ENLACE ---
+                # --- VISUALIZACIÓN CON ENLACE VISIBLE ---
                 with st.container():
                     st.markdown(f"""
                     <div style="margin-top: 10px;">
                         <span style="font-size:1.2em;">{n['flag']}</span> 
                         <span class="fuente-fecha">[{f_str}] <b>{n['fuente']}</b></span>
-                        <a href="{n['link']}" target="_blank" class="link-icono" title="Leer noticia original">🔗</a>
+                        <a href="{n['link']}" target="_blank" class="mi-enlace">🔗 Leer original</a>
                         <span style="float:right;" class="{clase_css}">{etiqueta} ({score:.2f})</span>
                     </div>
                     """, unsafe_allow_html=True)

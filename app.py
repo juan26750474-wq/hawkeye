@@ -27,8 +27,8 @@ hide_streamlit_style = """
             .fuente-fecha { font-size: 0.9em; color: #666; }
             
             /* Enlace estilizado */
-            a { text-decoration: none; font-weight: bold; color: #0068c9 !important; }
-            a:hover { text-decoration: underline; }
+            a.link-icono { text-decoration: none; font-size: 1.2em; margin-left: 5px; }
+            a.link-icono:hover { opacity: 0.7; }
             </style>
             """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
@@ -112,7 +112,7 @@ if submitted and tema_es:
                 fecha = datetime.fromtimestamp(mktime(entry.published_parsed))
                 if fecha >= fecha_limite:
                     txt = limpiar_html(f"{entry.title}. {entry.description}")
-                    link = entry.link # Capturamos el enlace
+                    link = entry.link # Capturamos LINK
                     if len(txt) > 10:
                         score = analizar_con_inteligencia(txt)
                         noticias_inter.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Intl", "fecha": fecha, "score": score, "link": link})
@@ -125,7 +125,7 @@ if submitted and tema_es:
                 fecha = datetime.fromtimestamp(mktime(entry.published_parsed))
                 if fecha >= fecha_limite:
                     txt = limpiar_html(f"{entry.title}. {entry.description}")
-                    link = entry.link # Capturamos el enlace
+                    link = entry.link # Capturamos LINK
                     if len(txt) > 10:
                         score = analizar_con_inteligencia(txt)
                         noticias_nac.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Nac", "fecha": fecha, "score": score, "link": link})
@@ -172,7 +172,6 @@ if submitted and tema_es:
 
             for n in todas:
                 score = n['score']
-                # Etiquetas visuales
                 if score > 0.65:
                     etiqueta = "🟢 BUENA"
                     clase_css = "noticia-buena"
@@ -184,24 +183,22 @@ if submitted and tema_es:
                     clase_css = "noticia-neutra"
 
                 f_str = n['fecha'].strftime("%d/%m")
-                # Recortamos texto visualmente
                 texto_corto = (n['txt'][:120] + '...') if len(n['txt']) > 120 else n['txt']
                 
-                # AÑADIMOS EL ENLACE AL FINAL DEL TEXTO
-                texto_con_enlace = f"{texto_corto} [**Leer noticia >**]({n['link']})"
-
-                # Tarjeta de noticia
+                # --- VISUALIZACIÓN CON ENLACE ---
                 with st.container():
                     st.markdown(f"""
                     <div style="margin-top: 10px;">
                         <span style="font-size:1.2em;">{n['flag']}</span> 
                         <span class="fuente-fecha">[{f_str}] <b>{n['fuente']}</b></span>
+                        <a href="{n['link']}" target="_blank" class="link-icono" title="Leer noticia original">🔗</a>
                         <span style="float:right;" class="{clase_css}">{etiqueta} ({score:.2f})</span>
                     </div>
                     """, unsafe_allow_html=True)
-                    st.info(texto_con_enlace) # Streamlit procesa el markdown del enlace aquí
+                    st.info(texto_corto)
 
         else:
             st.warning("No se encontraron noticias recientes sobre este tema.")
+
 
 

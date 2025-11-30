@@ -145,7 +145,7 @@ with st.expander("ℹ️ Ayuda y Normas de Búsqueda"):
 
 with st.form("my_form"):
     col1, col2 = st.columns([3, 1])
-    with col1: tema_es = st.text_input("✍️ Tema a analizar:", placeholder="Ej: \"Plan Hidrológico\"")
+    with col1: tema_es = st.text_input("✍️ Tema a analizar:", placeholder="Ej: \"Invernaderos Almería\"")
     with col2: periodo = st.selectbox("📅 Periodo:", ["24 Horas", "Semana", "Mes", "Año"])
     submitted = st.form_submit_button("🚀 EJECUTAR ANÁLISIS")
 
@@ -240,6 +240,7 @@ if submitted and tema_es:
                     st.markdown("---")
         else:
             st.warning("No se encontraron noticias recientes.")
+
 
 
 

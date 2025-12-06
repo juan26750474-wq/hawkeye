@@ -17,12 +17,15 @@ st.set_page_config(page_title="Analizador de Reputación JCPM", layout="centered
 # --- 2. ESTILOS CSS ---
 st.markdown("""
 <style>
-    /* Ocultar elementos de Streamlit */
+    /* 1. Ocultar Menú hamburguesa y Pie de página */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    /* header {visibility: hidden;}  <-- ELIMINADO para que se vea la flecha del menú lateral */
     
-    /* Etiquetas de colores */
+    /* 2. Ocultar la barra de herramientas superior derecha (Deploy, tres puntos, etc.) */
+    [data-testid="stToolbar"] {visibility: hidden !important;}
+    [data-testid="stDecoration"] {visibility: hidden !important;}
+    
+    /* 3. Estilos de la App */
     .noticia-buena { color: #2e7d32; font-weight: bold; background-color: #e8f5e9; padding: 2px 6px; border-radius: 4px; }
     .noticia-mala { color: #d32f2f; font-weight: bold; background-color: #ffebee; padding: 2px 6px; border-radius: 4px; }
     .noticia-neutra { color: #555; font-weight: bold; background-color: #f5f5f5; padding: 2px 6px; border-radius: 4px; }

@@ -20,7 +20,7 @@ st.markdown("""
     /* Ocultar elementos de Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
+    /* header {visibility: hidden;}  <-- ELIMINADO para que se vea la flecha del menú lateral */
     
     /* Etiquetas de colores */
     .noticia-buena { color: #2e7d32; font-weight: bold; background-color: #e8f5e9; padding: 2px 6px; border-radius: 4px; }
@@ -168,8 +168,6 @@ with st.sidebar:
     st.header("Sobre nosotros")
     st.write("Herramienta desarrollada para el análisis de inteligencia corporativa.")
     st.link_button("🌐 Visitar Aprendidos.es", "https://www.aprendidos.es/")
-    st.divider()
-    st.info("v3.0 - Edición Profesional")
 
 with st.expander("ℹ️ Ayuda y Normas de Búsqueda"):
     st.markdown("""
@@ -280,7 +278,6 @@ if submitted and tema_es:
                     st.markdown("---")
         else:
             st.warning("No se encontraron noticias recientes.")
-
 
 
 

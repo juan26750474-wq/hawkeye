@@ -17,10 +17,12 @@ st.set_page_config(page_title="Analizador de Reputación JCPM", layout="centered
 # --- 2. ESTILOS CSS ---
 st.markdown("""
 <style>
+    /* Ocultar elementos de Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
+    /* Etiquetas de colores */
     .noticia-buena { color: #2e7d32; font-weight: bold; background-color: #e8f5e9; padding: 2px 6px; border-radius: 4px; }
     .noticia-mala { color: #d32f2f; font-weight: bold; background-color: #ffebee; padding: 2px 6px; border-radius: 4px; }
     .noticia-neutra { color: #555; font-weight: bold; background-color: #f5f5f5; padding: 2px 6px; border-radius: 4px; }
@@ -98,11 +100,11 @@ def generar_resumen_dinamico(todas_las_noticias, nota_global, termino_busqueda):
     
     total = len(todas_las_noticias)
     
-    # 1. Filtro de palabras prohibidas
+    # 1. Filtro de palabras prohibidas (búsqueda)
     busqueda_limpia = termino_busqueda.lower().replace('"', '').replace("'", "")
     palabras_busqueda = set(busqueda_limpia.split())
     
-    # 2. Trending Topics
+    # 2. Extraer Trending Topics
     texto_completo = " ".join([n['txt'] for n in todas_las_noticias]).lower()
     texto_completo = re.sub(r'[^\w\s]', '', texto_completo) 
     palabras = texto_completo.split()
@@ -124,8 +126,8 @@ def generar_resumen_dinamico(todas_las_noticias, nota_global, termino_busqueda):
         conceptos_str = "temas generales"
 
     # 3. Métricas (Ajustadas a los nuevos umbrales)
-    # Umbral Positivo: > 0.60 (Antes 0.65)
-    # Umbral Negativo: < 0.30 (Antes 0.40)
+    # Umbral Positivo: > 0.60
+    # Umbral Negativo: < 0.30
     pos = sum(1 for n in todas_las_noticias if n['score'] > 0.60)
     neg = sum(1 for n in todas_las_noticias if n['score'] < 0.30)
     
@@ -148,7 +150,7 @@ def generar_resumen_dinamico(todas_las_noticias, nota_global, termino_busqueda):
     if neg == 0 and pos > 0:
         mensaje += "Es destacable la **ausencia total de noticias negativas** en este periodo."
     elif neg > pos:
-        mensaje += f"⚠️ **Atención:** El volumen de noticias negativas ({neg}) supera al de positivas ({pos})."
+        mensaje += f"⚠️ **Atención:** El volumen de noticias negativas ({neg}) supera al de positivas ({pos}), lo que indica una tendencia a la baja."
     elif pos > neg:
         mensaje += f"La solidez del tema se confirma con **{pos} noticias positivas**."
     else:
@@ -160,6 +162,14 @@ def generar_resumen_dinamico(todas_las_noticias, nota_global, termino_busqueda):
 st.title("🌍 Monitor de Inteligencia Global")
 st.markdown("Sistema avanzado para medir la **reputación** y el **sentimiento** de cualquier tema en prensa **Nacional** (España) e **Internacional** (Global) en tiempo real.")
 st.caption("© JCPM - 2025")
+
+# --- BOTÓN DE ENLACE EN LA BARRA LATERAL ---
+with st.sidebar:
+    st.header("Sobre nosotros")
+    st.write("Herramienta desarrollada para el análisis de inteligencia corporativa.")
+    st.link_button("🌐 Visitar Aprendidos.es", "https://www.aprendidos.es/")
+    st.divider()
+    st.info("v3.0 - Edición Profesional")
 
 with st.expander("ℹ️ Ayuda y Normas de Búsqueda"):
     st.markdown("""
@@ -248,8 +258,7 @@ if submitted and tema_es:
                 score = n['score']
                 
                 # --- NUEVOS UMBRALES SUAVIZADOS ---
-                # Antes: > 0.65 Buena | < 0.4 Mala
-                # Ahora: > 0.60 Buena | < 0.30 Mala
+                # > 0.60 Buena | < 0.30 Mala
                 if score > 0.60: 
                     lbl, css = "BUENA", "noticia-buena"
                 elif score < 0.30: 
@@ -271,6 +280,7 @@ if submitted and tema_es:
                     st.markdown("---")
         else:
             st.warning("No se encontraron noticias recientes.")
+
 
 
 

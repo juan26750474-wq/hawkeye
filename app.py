@@ -1,6 +1,6 @@
 import streamlit as st
 import feedparser
-import google.generativeai as genai # Librería oficial de Google
+import google.generativeai as genai
 import urllib.parse
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from deep_translator import GoogleTranslator
@@ -10,17 +10,18 @@ import html
 import re
 import statistics
 
-# --- 1. CONFIGURACIÓN Y API KEY ---
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="Analizador Global 360", layout="centered")
 
-# ⚠️ PEGA AQUÍ TU CLAVE DE GOOGLE AI STUDIO ⚠️
-GEMINI_API_KEY = "AIzaSyC8bQvMCvWCAYIwihZx2w1HgkMBDMl_n5E" 
+# ⚠️ PON AQUÍ TU NUEVA CLAVE (NO LA QUE BORRASTE)
+GEMINI_API_KEY = "AIzaSyC8bQvMCvWCAYIwihZx2w1HgkMBDMl_n5E"
 
-# Configuración de la librería de Google
-try:
-    genai.configure(api_key=GEMINI_API_KEY)
-except:
-    pass
+# Configuración segura de la librería
+if GEMINI_API_KEY.startswith("AIza"):
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+    except Exception as e:
+        st.error(f"Error configurando API: {e}")
 
 # --- 2. ESTILOS CSS ---
 st.markdown("""
@@ -47,51 +48,43 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. CARGA DE MOTORES ---
+# --- 3. MOTORES ---
 @st.cache_resource
 def cargar_motores():
     return SentimentIntensityAnalyzer()
 analizador = cargar_motores()
 
-# --- 4. FUNCIONES DE LÓGICA E IA ---
-
+# --- 4. LÓGICA IA ---
 def consultar_gemini(lista_noticias, tema):
-    """Genera el resumen usando la librería oficial de Google (más estable)"""
+    """Genera el resumen usando Gemini Pro (Modelo más estable)"""
     if not lista_noticias:
-        return "No hay noticias suficientes para generar un informe."
+        return "Faltan datos para el análisis."
 
-    # Preparamos los datos
+    # Contexto
     datos_contexto = ""
-    for n in lista_noticias[:25]:
-        datos_contexto += f"- [{n['fecha_str']}] ({n['pais']}) {n['fuente']}: {n['titulo']} (Sentimiento: {n['score']:.2f})\n"
+    for n in lista_noticias[:20]:
+        datos_contexto += f"- {n['fecha_str']} ({n['pais']}): {n['titulo']}\n"
 
     prompt = f"""
     Eres un Analista de Inteligencia. Analiza: "{tema}".
     
-    NOTICIAS:
+    TITULARES DETECTADOS:
     {datos_contexto}
     
     INSTRUCCIONES:
-    1. Resumen Ejecutivo (Crisis, Éxito o Estabilidad).
-    2. Diferencias por países.
-    3. Hechos clave.
-    4. Previsión corto plazo.
+    1. Resumen de situación (Crisis/Estabilidad).
+    2. Diferencias por región.
+    3. Conclusión breve.
     """
 
     try:
-        # Usamos 'gemini-1.5-flash' que es el nombre estándar en la librería oficial
-        # Si falla, el código probará automáticamente con 'gemini-pro'
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # INTENTO 1: Usar el modelo estándar 'gemini-pro' (Más compatible que Flash)
+        model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        # Intento de respaldo si falla el modelo Flash
-        try:
-            model_backup = genai.GenerativeModel('gemini-pro')
-            response = model_backup.generate_content(prompt)
-            return response.text
-        except Exception as e2:
-            return f"⚠️ Error conectando con IA: {str(e)}. Verifica tu API KEY."
+        # Si falla, devolvemos el error exacto para verlo en pantalla
+        return f"⚠️ Error IA: {str(e)}"
 
 def limpiar_texto(texto):
     txt = html.unescape(texto)
@@ -102,35 +95,30 @@ def obtener_sentimiento(texto_traducido_en):
     score = analizador.polarity_scores(texto_traducido_en)['compound']
     return (score + 1) / 2
 
-# --- 5. INTERFAZ Y BÚSQUEDA ---
+# --- 5. INTERFAZ ---
+st.title("🌍 Radar Global 360º")
 
-st.title("🌍 Radar de Inteligencia Global")
-
-# Inicializamos variable segura
 todas_noticias = []
 
 with st.form("search_form"):
     col1, col2 = st.columns([3, 1])
     with col1: 
-        tema_busqueda = st.text_input("Objetivo de Inteligencia:", placeholder="Ej: Energía Solar...")
+        tema_busqueda = st.text_input("Objetivo:", placeholder="Ej: Bitcoin, Elecciones EEUU...")
     with col2: 
-        periodo = st.selectbox("Ventana de Tiempo:", ["24 Horas", "7 Días", "30 Días", "1 Año"])
-    
-    btn_buscar = st.form_submit_button("🚀 EJECUTAR ANÁLISIS")
+        periodo = st.selectbox("Tiempo:", ["24 Horas", "7 Días", "30 Días", "1 Año"])
+    btn_buscar = st.form_submit_button("🚀 EJECUTAR")
 
 if btn_buscar and tema_busqueda:
-    if "PON_AQUI" in GEMINI_API_KEY or len(GEMINI_API_KEY) < 10:
-        st.error("⚠️ ERROR: Falta la API KEY de Google Gemini en la línea 17.")
+    if "PON_AQUI" in GEMINI_API_KEY:
+        st.error("⚠️ Falta la API KEY en el código.")
         st.stop()
     
-    with st.status("📡 Rastreando noticias internacionales...", expanded=True) as status:
-        
+    with st.status("📡 Escaneando fuentes...", expanded=True) as status:
         regiones = {
             "ES": {"gl": "ES", "hl": "es-419", "lang_code": "es", "flag": "🇪🇸"},
-            "US/UK": {"gl": "US", "hl": "en-US", "lang_code": "en", "flag": "🇬🇧"},
+            "UK": {"gl": "GB", "hl": "en-GB", "lang_code": "en", "flag": "🇬🇧"},
+            "USA": {"gl": "US", "hl": "en-US", "lang_code": "en", "flag": "🇺🇸"},
             "FR": {"gl": "FR", "hl": "fr-FR", "lang_code": "fr", "flag": "🇫🇷"},
-            "DE": {"gl": "DE", "hl": "de-DE", "lang_code": "de", "flag": "🇩🇪"},
-            "AR": {"gl": "SA", "hl": "ar", "lang_code": "ar", "flag": "🇸🇦"} 
         }
 
         if periodo == "24 Horas": dias = 1
@@ -141,106 +129,74 @@ if btn_buscar and tema_busqueda:
         fecha_limite = datetime.now() - timedelta(days=dias)
 
         for region, params in regiones.items():
-            st.write(f"Analizando {params['flag']}...")
-            
+            st.write(f"Leyendo {params['flag']}...")
             try:
-                query_traducida = tema_busqueda
+                q = tema_busqueda
                 if params['lang_code'] != 'es':
-                    query_traducida = GoogleTranslator(source='auto', target=params['lang_code']).translate(tema_busqueda)
-            except:
-                query_traducida = tema_busqueda 
-
-            # Parametros para buscar hasta 1 año atrás si es necesario
-            q_param = urllib.parse.quote(query_traducida)
-            if dias == 365: q_param += "+when:1y"
-            
-            url_rss = f"https://news.google.com/rss/search?q={q_param}&hl={params['hl']}&gl={params['gl']}&ceid={params['gl']}:{params['hl']}"
-            
-            try:
-                feed = feedparser.parse(url_rss)
+                    q = GoogleTranslator(source='auto', target=params['lang_code']).translate(tema_busqueda)
+                
+                q_enc = urllib.parse.quote(q)
+                if dias == 365: q_enc += "+when:1y"
+                
+                url = f"https://news.google.com/rss/search?q={q_enc}&hl={params['hl']}&gl={params['gl']}&ceid={params['gl']}:{params['hl']}"
+                
+                feed = feedparser.parse(url)
                 for entry in feed.entries:
                     if hasattr(entry, 'published_parsed'):
-                        fecha_pub = datetime.fromtimestamp(mktime(entry.published_parsed))
-                        
-                        if fecha_pub >= fecha_limite:
+                        dt = datetime.fromtimestamp(mktime(entry.published_parsed))
+                        if dt >= fecha_limite:
                             try:
-                                txt_original = limpiar_texto(f"{entry.title}. {entry.description}")
-                                
+                                txt_orig = limpiar_texto(entry.title)
                                 if params['lang_code'] == 'es':
-                                    txt_es = txt_original
-                                    txt_en = GoogleTranslator(source='es', target='en').translate(txt_original)
+                                    txt_es = txt_orig
+                                    txt_en = GoogleTranslator(source='es', target='en').translate(txt_orig)
                                 else:
-                                    txt_es = GoogleTranslator(source=params['lang_code'], target='es').translate(txt_original)
-                                    txt_en = GoogleTranslator(source=params['lang_code'], target='en').translate(txt_original)
-                                
-                                score = obtener_sentimiento(txt_en)
+                                    txt_es = GoogleTranslator(source=params['lang_code'], target='es').translate(txt_orig)
+                                    txt_en = GoogleTranslator(source=params['lang_code'], target='en').translate(txt_orig)
                                 
                                 todas_noticias.append({
                                     "titulo": txt_es,
-                                    "original": txt_original,
-                                    "fuente": entry.source.title if 'source' in entry else "Google News",
+                                    "original": txt_orig,
+                                    "fuente": entry.source.title if 'source' in entry else "Google",
                                     "pais": params['flag'],
-                                    "fecha": fecha_pub,
-                                    "fecha_str": fecha_pub.strftime('%d/%m/%Y'),
-                                    "score": score,
-                                    "link": getattr(entry, 'link', '#')
+                                    "fecha": dt,
+                                    "fecha_str": dt.strftime('%d/%m/%Y'),
+                                    "score": obtener_sentimiento(txt_en)
                                 })
-                            except Exception:
-                                continue
-            except Exception:
-                continue
+                            except: pass
+            except: pass
+        status.update(label="✅ Listo", state="complete", expanded=False)
 
-        status.update(label="✅ Finalizado", state="complete", expanded=False)
-
-# --- 6. VISUALIZACIÓN ---
-
+# --- 6. RESULTADOS ---
 if todas_noticias:
     scores = [n['score'] for n in todas_noticias]
-    media_score = statistics.mean(scores)
-    nota_final = 1 + (media_score * 6)
-    
-    if nota_final >= 5: color_nota = "green"
-    elif nota_final <= 2.5: color_nota = "red"
-    else: color_nota = "orange"
+    media = statistics.mean(scores)
+    nota = 1 + (media * 6)
+    color = "green" if nota >= 5 else "red" if nota <= 2.5 else "orange"
 
     st.divider()
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2:
-        st.markdown(f"<h2 style='text-align: center; color: {color_nota}'>Reputación: {nota_final:.1f} / 7.0</h2>", unsafe_allow_html=True)
-        st.progress(media_score)
+    st.markdown(f"<h2 style='text-align:center; color:{color}'>Reputación: {nota:.1f}/7.0</h2>", unsafe_allow_html=True)
 
     st.markdown(f"""
     <div class="analisis-ia">
-        <div class="analisis-titulo">🧠 Informe Inteligente (Gemini)</div>
+        <div class="analisis-titulo">🧠 Análisis Gemini</div>
         {consultar_gemini(todas_noticias, tema_busqueda)}
-        <br><small style="color:gray">Basado en {len(todas_noticias)} noticias.</small>
     </div>
     """, unsafe_allow_html=True)
 
-    st.subheader(f"🗞️ Noticias ({len(todas_noticias)})")
+    st.subheader(f"Noticias ({len(todas_noticias)})")
     todas_noticias.sort(key=lambda x: x['fecha'], reverse=True)
-
+    
     for n in todas_noticias:
-        if n['score'] > 0.6: css_class, label = "noticia-buena", "POSITIVO"
-        elif n['score'] < 0.4: css_class, label = "noticia-mala", "NEGATIVO"
-        else: css_class, label = "noticia-neutra", "NEUTRO"
-
-        with st.container():
-            col_a, col_b = st.columns([0.85, 0.15])
-            with col_a:
-                st.markdown(f"""
-                <span style="font-size:1.1em; font-weight:bold;">{n['titulo']}</span><br>
-                <span class="tag-lang">{n['pais']}</span> <span class="fuente-fecha">{n['fuente']} | {n['fecha_str']}</span>
-                """, unsafe_allow_html=True)
-                if n['pais'] != "🇪🇸":
-                    with st.expander("Ver original"):
-                        st.caption(n['original'])
-            with col_b:
-                st.markdown(f'<div class="{css_class}" style="text-align:center; font-size:0.8em;">{label}<br>{n["score"]:.2f}</div>', unsafe_allow_html=True)
-            st.markdown("---")
-            
+        colA, colB = st.columns([0.85, 0.15])
+        with colA:
+            st.write(f"**{n['pais']} | {n['fuente']}**: {n['titulo']}")
+        with colB:
+            st.write(f"Sc: {n['score']:.2f}")
+        st.divider()
 elif btn_buscar:
-    st.warning("No se encontraron noticias. Prueba otro término.")
+    st.warning("No se encontraron noticias.")
+
 
 
 

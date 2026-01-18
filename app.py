@@ -162,6 +162,7 @@ def generar_sitrep(df_noticias, tema, rol):
     1. Redacta un SITREP (Informe de Situación) en ESPAÑOL.
     2. Estilo ejecutivo, directo y basado puramente en los hechos recientes.
     3. Cruza información de orígenes y destinos.
+    4. Sólo hacer análisis de situación. No hacer recomendaciones.
     
     SALIDA:
     3 párrafos de análisis de alto nivel.
@@ -272,6 +273,7 @@ st.markdown("""
         Development & (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

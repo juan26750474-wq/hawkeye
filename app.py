@@ -8,7 +8,6 @@ from time import mktime
 import html
 import re
 import pandas as pd
-import altair as alt
 
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="Strategic Intel Board", layout="wide", page_icon="🛡️")
@@ -22,30 +21,21 @@ if GEMINI_API_KEY.startswith("AIza"):
     except Exception as e:
         st.error(f"Error de API: {e}")
 
-# --- 2. ESTILOS CSS (DISEÑO CLEAN & PRO) ---
+# --- 2. ESTILOS CSS ---
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     [data-testid="stToolbar"] {visibility: hidden;}
     
-    /* Métricas limpias */
-    div[data-testid="metric-container"] {
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        padding: 10px;
-        border-radius: 8px;
-        text-align: center;
-    }
-    
-    /* Informe estilo SITREP (Situational Report) */
+    /* Informe estilo SITREP */
     .ia-report {
         background-color: #ffffff;
         padding: 30px;
         border-radius: 4px;
-        border-top: 4px solid #2c3e50; /* Azul oscuro sobrio */
+        border-top: 4px solid #2c3e50;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        font-family: 'Georgia', serif; /* Tipografía más seria para lectura */
+        font-family: 'Georgia', serif;
         margin-bottom: 30px;
     }
     .ia-report h3 { 
@@ -53,38 +43,29 @@ st.markdown("""
         font-family: 'Segoe UI', sans-serif;
         font-size: 1.1em; 
         text-transform: uppercase; 
-        letter-spacing: 1px;
-        margin-top: 25px; 
         border-bottom: 1px solid #eee;
         padding-bottom: 5px;
+        margin-top: 20px;
     }
-    .ia-report li { margin-bottom: 6px; }
     
     /* Footer */
     .custom-footer {
-        position: fixed;
-        bottom: 0; left: 0; width: 100%;
-        background-color: #ffffff;
-        color: #888;
-        text-align: center;
-        padding: 8px;
-        font-size: 0.75em;
-        border-top: 1px solid #eee;
-        z-index: 999;
-        font-family: sans-serif;
+        position: fixed; bottom: 0; left: 0; width: 100%;
+        background-color: #ffffff; color: #888;
+        text-align: center; padding: 8px; font-size: 0.75em;
+        border-top: 1px solid #eee; z-index: 999;
     }
     
-    .block-container { padding-top: 2rem; padding-bottom: 6rem; }
+    .block-container { padding-top: 2rem; padding-bottom: 5rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. LÓGICA DE EXTRACCIÓN ---
+# --- 3. LÓGICA ---
 
 def limpiar_html(texto):
     return html.unescape(re.sub(r'<[^>]+>', '', texto)).strip()
 
 def obtener_noticias(tema, dias):
-    # Selección estratégica de mercados
     mercados = {
         "🇪🇸 ES":   {"gl": "ES", "hl": "es-419", "lang": "es"},
         "🇲🇦 MA":   {"gl": "MA", "hl": "fr",     "lang": "fr"}, 
@@ -136,7 +117,6 @@ def generar_sitrep(df_noticias, tema, rol):
     if df_noticias.empty: return "Sin inteligencia disponible."
     
     raw_text = ""
-    # Priorizamos las noticias más recientes
     df_sorted = df_noticias.sort_values(by="fecha", ascending=False)
     for _, row in df_sorted.head(50).iterrows():
         raw_text += f"- [{row['pais']}] {row['fuente']}: {row['titulo_es']}\n"
@@ -144,40 +124,36 @@ def generar_sitrep(df_noticias, tema, rol):
     hoy = datetime.now().strftime("%d de %B de %Y")
 
     prompt = f"""
-    Actúa como ANALISTA DE INTELIGENCIA ESTRATÉGICA (Nivel Senior).
-    FECHA ACTUAL: {hoy}.
+    Actúa como ANALISTA DE INTELIGENCIA (SITREP MILITAR/ECONÓMICO).
+    FECHA: {hoy}.
     OBJETIVO: "{tema}"
-    PERFIL RECEPTOR: "{rol}"
+    PERFIL: "{rol}"
     
-    INTELIGENCIA BRUTA (NOTICIAS):
+    INTELIGENCIA BRUTA:
     {raw_text}
     
-    ---
-    INSTRUCCIONES DE FORMATO:
-    1. **NO DES CONSEJOS OBVIOS** (Ej: "venda caro", "ahorre costes"). Eso el usuario ya lo sabe.
-    2. Céntrate en **CAUSA-EFECTO**. (Ej: "Huelga en Tánger -> Retraso de 48h en envíos -> Ventana de oportunidad en precios").
-    3. Sé sintético, frío y directo. Usa lenguaje profesional/económico.
+    INSTRUCCIONES:
+    1. CERO Consejos vacíos ("ahorre", "vigile"). Céntrate en CAUSA -> CONSECUENCIA.
+    2. Identifica PATRONES (Si Alemania y Holanda dicen lo mismo, es tendencia confirmada).
+    3. Estilo telegráfico y directivo.
     
-    ESTRUCTURA DEL SITREP (Situation Report):
+    FORMATO SITREP:
     
-    ### ⚡ Estado de Situación (Executive Summary)
-    (Síntesis de la dinámica actual del mercado basada en los hechos leídos. ¿Alcista, bajista, volátil? Cita fuentes).
+    ### ⚡ Estado de Situación
+    (Dinámica actual del mercado: Alcista/Bajista/Volátil. Cita fuentes).
     
-    ### 📅 Proyecciones e Impacto
+    ### 📅 Proyecciones Tácticas & Estratégicas
     
-    **Corto Plazo (1-4 Semanas)**
-    * **Dinámica:** [Análisis de flujo de mercado inmediato]
-    * **Factor Crítico:** [Noticia específica que mueve la aguja esta semana]
+    **Corto Plazo (Inmediato)**
+    * **Dinámica:** [Análisis]
+    * **Trigger:** [Hecho noticioso clave]
     
-    **Medio Plazo (1-6 Meses)**
-    * **Tendencia:** [Proyección basada en datos]
-    * **Riesgos/Oportunidades:** [Regulaciones, clima, competencia]
+    **Medio Plazo (Tendencia)**
+    * **Escenario Base:** [Proyección]
+    * **Riesgos:** [Regulación/Clima]
     
-    **Largo Plazo (Visión 1 Año)**
-    * **Escenario Estructural:** [Cambios de fondo detectados]
-    
-    ### 🛑 Señales de Alerta (Red Flags)
-    (Solo si hay riesgos graves detectados en las noticias: plagas, leyes, aranceles).
+    ### 🛑 Amenazas Críticas
+    (Solo si existen peligros reales detectados).
     """
 
     try:
@@ -185,23 +161,22 @@ def generar_sitrep(df_noticias, tema, rol):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Error generando SITREP: {str(e)}"
+        return f"Error SITREP: {str(e)}"
 
-# --- 4. INTERFAZ (DISEÑO HORIZONTAL) ---
+# --- 4. INTERFAZ ---
 
 st.title("🛡️ Strategic Intel Board")
-st.caption("Sistema de Soporte a la Decisión")
 
 with st.form("main_form"):
     c1, c2, c3, c4 = st.columns([2, 4, 1.5, 1.5])
     
     with c1:
-        st.write("**Foco de Análisis**")
+        st.write("**Foco**")
         tema = st.text_input("Tema", value="Tomate Exportación", label_visibility="collapsed")
     
     with c2:
-        st.write("**Perfil Estratégico**")
-        rol = st.text_input("Rol", value="Productor Almería. Busco ventanas de precio frente a Marruecos.", label_visibility="collapsed")
+        st.write("**Perfil**")
+        rol = st.text_input("Rol", value="Productor Almería. Busco ventanas de precio.", label_visibility="collapsed")
         
     with c3:
         st.write("**Ventana**")
@@ -225,52 +200,49 @@ if btn_run:
     if not df.empty:
         st.write("")
         
-        # --- TOP: GRÁFICO Y MÉTRICAS ---
-        col_graph, col_kpi = st.columns([3, 1])
+        # --- TOP: DATOS CRUDOS SIMPLES ---
+        c_left, c_right = st.columns([1, 3])
         
-        with col_graph:
-            # Gráfico minimalista
-            chart = alt.Chart(df).mark_bar(color='#2c3e50').encode(
-                x=alt.X('count()', title=None),
-                y=alt.Y('pais', sort='-x', title=None),
-                tooltip=['pais', 'count()']
-            ).properties(height=120, title="Volumen de Señales por Mercado")
-            st.altair_chart(chart, use_container_width=True)
-            
-        with col_kpi:
-            st.metric("Fuentes", df["fuente"].nunique())
-            st.metric("Señales", len(df))
+        with c_left:
+            st.subheader("📊 Distribución")
+            # Tabla simple de conteo por país
+            conteo = df['pais'].value_counts().reset_index()
+            conteo.columns = ['Mercado', 'Noticias']
+            st.dataframe(conteo, hide_index=True, use_container_width=True)
 
-        # --- BODY: SITREP (IA) ---
-        st.markdown("---")
-        with st.spinner("Procesando inteligencia..."):
-            sitrep = generar_sitrep(df, tema, rol)
-            
-        st.markdown(f'<div class="ia-report">{sitrep}</div>', unsafe_allow_html=True)
+        with c_right:
+            st.subheader("🧠 SITREP (Reporte de Situación)")
+            with st.spinner("Procesando inteligencia..."):
+                sitrep = generar_sitrep(df, tema, rol)
+            st.markdown(f'<div class="ia-report">{sitrep}</div>', unsafe_allow_html=True)
 
-        # --- FOOTER: TABLA DE DATOS ---
-        with st.expander("📂 Fuentes de Inteligencia (Raw Data)", expanded=False):
-            st.dataframe(
-                df[['fecha_str', 'pais', 'fuente', 'titulo_es', 'link']],
-                column_config={
-                    "fecha_str": st.column_config.TextColumn("Fecha", width="small"),
-                    "pais": st.column_config.TextColumn("Origen", width="small"),
-                    "fuente": st.column_config.TextColumn("Medio", width="medium"),
-                    "titulo_es": st.column_config.TextColumn("Titular", width="large"),
-                    "link": st.column_config.LinkColumn("Ref", display_text="(Ver)")
-                },
-                use_container_width=True,
-                hide_index=True
-            )
+        # --- FOOTER: TABLA PRINCIPAL ---
+        st.subheader("📂 Fuentes de Inteligencia")
+        
+        st.dataframe(
+            df[['fecha_str', 'pais', 'fuente', 'titulo_es', 'link']],
+            column_config={
+                "fecha_str": st.column_config.TextColumn("Fecha", width="small"),
+                "pais": st.column_config.TextColumn("Mercado", width="small"),
+                "fuente": st.column_config.TextColumn("Medio", width="medium"),
+                # AQUÍ ESTÁ EL CAMBIO: Ancho grande para leer bien
+                "titulo_es": st.column_config.TextColumn("Titular Detectado", width="large"), 
+                # AQUÍ ESTÁ EL CAMBIO: Solo dice "Leer"
+                "link": st.column_config.LinkColumn("Ref", display_text="Leer") 
+            },
+            use_container_width=True,
+            hide_index=True
+        )
     else:
         st.info(f"Sin actividad relevante sobre '{tema}' en el periodo seleccionado.")
 
-# --- FOOTER CORPORATIVO ---
+# --- FOOTER ---
 st.markdown("""
     <div class="custom-footer">
-        Desarrollo y (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
+        Desarrollo y (c) Family Meeting Pérez-Mesa
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

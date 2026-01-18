@@ -31,34 +31,66 @@ st.markdown("""
     /* SITREP Box */
     .ia-report {
         background-color: #ffffff;
-        padding: 30px;
-        border-radius: 8px;
+        padding: 25px;
+        border-radius: 6px;
         border-top: 4px solid #0056b3; 
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         font-family: 'Segoe UI', sans-serif;
-        font-size: 1.0em;
+        font-size: 0.95em;
         line-height: 1.5;
         color: #2c3e50;
     }
-    .ia-report strong { color: #0056b3; }
     
     /* Inputs */
     .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {
         background-color: #f8f9fa;
         border: 1px solid #e9ecef;
     }
-    
+
+    /* ESTILO DE NOTICIAS (Letra pequeña + Espacio Vertical) */
+    .news-container {
+        border-bottom: 1px solid #eee;
+        padding: 8px 0;
+    }
+    .news-meta {
+        font-size: 0.75em; /* Letra muy pequeña para fecha/pais */
+        color: #888;
+        margin-bottom: 2px;
+        font-family: monospace;
+    }
+    .news-title {
+        font-size: 0.85em; /* Letra contenida para el titular */
+        font-weight: 600;
+        color: #222;
+        line-height: 1.4; /* Espacio entre lineas para leer bien */
+        margin-bottom: 4px;
+        display: block; /* Fuerza que ocupe su propio bloque */
+    }
+    .news-source {
+        font-size: 0.75em;
+        color: #0056b3;
+        font-weight: bold;
+    }
+    .news-link a {
+        font-size: 0.75em;
+        text-decoration: none;
+        color: #0056b3;
+        border: 1px solid #eee;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+    .news-link a:hover { background-color: #f0f0f0; }
+
     /* Footer */
     .custom-footer {
         position: fixed; bottom: 0; left: 0; width: 100%;
         background-color: #ffffff; color: #95a5a6;
-        text-align: center; padding: 12px; font-size: 0.75em;
+        text-align: center; padding: 10px; font-size: 0.75em;
         border-top: 1px solid #eaeaea; z-index: 999;
-        letter-spacing: 0.5px;
         font-family: sans-serif;
     }
     
-    .block-container { padding-top: 2rem; padding-bottom: 6rem; }
+    .block-container { padding-top: 1rem; padding-bottom: 5rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -105,7 +137,7 @@ def obtener_noticias(tema, dias):
                         lista_noticias.append({
                             "Market": nombre_pais,
                             "Source": entry.source.title,
-                            "Date": dt, # Objeto fecha real para ordenar
+                            "Date": dt, 
                             "Date_Str": dt.strftime("%Y-%m-%d"),
                             "Headline": tit_es,
                             "Link": entry.link
@@ -119,7 +151,6 @@ def generar_sitrep(df_noticias, tema, rol):
     if df_noticias.empty: return "No hay información disponible."
     
     raw_text = ""
-    # Ordenamos por fecha para la IA
     df_sorted = df_noticias.sort_values(by="Date", ascending=False)
     for _, row in df_sorted.head(70).iterrows(): 
         raw_text += f"- [{row['Market']}] {row['Source']}: {row['Headline']}\n"
@@ -132,16 +163,16 @@ def generar_sitrep(df_noticias, tema, rol):
     FOCO: "{tema}"
     PERFIL: "{rol}"
     
-    INTELIGENCIA BRUTA (NOTICIAS):
+    INTELIGENCIA BRUTA:
     {raw_text}
     
     INSTRUCCIONES:
-    1. Genera un "ESTADO DE SITUACIÓN" (SITREP) en **ESPAÑOL**.
+    1. Genera un "ESTADO DE SITUACIÓN" (SITREP) en ESPAÑOL.
     2. Céntrate SOLO EN HECHOS ACTUALES y DINÁMICAS DE MERCADO.
-    3. Cero consejos, cero predicciones, cero paja.
-    4. Cruza datos entre países (Ej: "Marruecos baja volumen mientras Holanda sube precios").
+    3. Cero consejos, cero predicciones.
+    4. Cruza datos entre países.
     
-    FORMATO DE SALIDA:
+    FORMATO:
     3 párrafos densos en información y análisis directo en ESPAÑOL.
     """
 
@@ -154,7 +185,8 @@ def generar_sitrep(df_noticias, tema, rol):
 
 # --- 4. INTERFACE ---
 
-st.title("🛡️ Strategic Intel Board")
+# HEADER EN INGLÉS
+st.title("Strategic Intel Board")
 st.caption("Global Competitor & Market Monitoring Unit")
 st.markdown("---")
 
@@ -162,36 +194,36 @@ with st.form("main_form"):
     c1, c2, c3, c4 = st.columns([2, 4, 1.2, 1.2])
     
     with c1:
-        st.write("**1. Focus Area**")
-        tema = st.text_area("Focus", value="Tomate Exportación", height=85, label_visibility="collapsed")
+        st.write("**1. Foco de Análisis**") # Español
+        tema = st.text_area("Foco", value="Tomate Exportación", height=85, label_visibility="collapsed")
     
     with c2:
-        st.write("**2. Strategic Profile**")
-        rol = st.text_area("Profile", value="Productor Almería. Competencia Marruecos/Holanda.", height=85, label_visibility="collapsed")
+        st.write("**2. Perfil Estratégico**") # Español
+        rol = st.text_area("Perfil", value="Productor Almería. Competencia Marruecos/Holanda.", height=85, label_visibility="collapsed")
         
     with c3:
-        st.write("**3. Timeframe**")
+        st.write("**3. Ventana**") # Español
         st.write("") 
         periodo_map = {
-            "24 Hours": 1, 
-            "7 Days": 7, 
-            "30 Days": 30, 
-            "90 Days (Quarter)": 90, 
-            "180 Days (Semester)": 180, 
-            "365 Days (Year)": 365
+            "24 Horas": 1, 
+            "7 Días": 7, 
+            "30 Días": 30, 
+            "Trimestre": 90, 
+            "Semestre": 180, 
+            "Anual": 365
         }
-        periodo_sel = st.selectbox("Time", list(periodo_map.keys()), index=2, label_visibility="collapsed")
+        periodo_sel = st.selectbox("Tiempo", list(periodo_map.keys()), index=2, label_visibility="collapsed")
         
     with c4:
         st.write("") 
         st.write("") 
-        btn_run = st.form_submit_button("RUN INTEL", type="primary", use_container_width=True)
+        btn_run = st.form_submit_button("ANALIZAR", type="primary", use_container_width=True) # Español
 
 dias = periodo_map[periodo_sel]
 
 if btn_run:
     if "PON_AQUI" in GEMINI_API_KEY:
-        st.error("⚠️ Error: Please add your API Key.")
+        st.error("⚠️ Error: Falta la API Key en el código.")
         st.stop()
 
     df = obtener_noticias(tema, dias)
@@ -203,47 +235,58 @@ if btn_run:
         col_datos, col_ia = st.columns([1, 2.5])
         
         with col_datos:
-            st.markdown("### 📊 Signal Volume")
-            # Tabla de métricas limpia
+            st.markdown("### 📊 Señales") # Español
             conteo = df['Market'].value_counts().reset_index()
-            conteo.columns = ['Market', 'Signals']
+            conteo.columns = ['Mercado', 'Noticias']
             st.dataframe(conteo, hide_index=True, use_container_width=True)
 
         with col_ia:
-            st.markdown("### ⚡ Situation Report (SITREP)")
-            with st.spinner("Synthesizing intelligence (ES)..."):
+            st.markdown("### ⚡ Estado de Situación") # Español
+            with st.spinner("Generando SITREP..."):
                 sitrep = generar_sitrep(df, tema, rol)
             st.markdown(f'<div class="ia-report">{sitrep}</div>', unsafe_allow_html=True)
 
-        # --- NEWS FEED (COLLAPSIBLE & SORTABLE) ---
+        # --- NEWS FEED (CUSTOM LIST) ---
         st.markdown("---")
         
-        # El expander cumple "que se pueda replegar"
-        with st.expander("📂 Source Intelligence Feed (Click to Expand)", expanded=False):
-            st.caption("Sort by clicking on headers. Text size optimized.")
+        # Desplegable en Español
+        with st.expander("📂 Fuentes de Inteligencia (Clic para desplegar)", expanded=False):
             
-            # Dataframe Interactivo (Cumple "que se puedan ordenar")
-            st.dataframe(
-                df[['Date', 'Market', 'Source', 'Headline', 'Link']],
-                column_config={
-                    "Date": st.column_config.DateColumn("Date", format="DD/MM/YYYY", width="small"),
-                    "Market": st.column_config.TextColumn("Market", width="small"),
-                    "Source": st.column_config.TextColumn("Source", width="medium"),
-                    "Headline": st.column_config.TextColumn("Headline", width="large"), # Espacio amplio para titular
-                    "Link": st.column_config.LinkColumn("Ref", display_text="Read")
-                },
-                use_container_width=True,
-                hide_index=True
-            )
-    else:
-        st.info(f"No relevant signals for {periodo_sel}.")
+            # Selector de Ordenación (Ya que no usamos tabla interactiva, lo hacemos manual)
+            c_sort, _ = st.columns([1, 4])
+            with c_sort:
+                orden = st.radio("Ordenar por:", ["Fecha (Más reciente)", "País (A-Z)"], horizontal=True)
+            
+            if "Fecha" in orden:
+                df_view = df.sort_values(by="Date", ascending=False)
+            else:
+                df_view = df.sort_values(by="Market", ascending=True)
 
-# --- FOOTER ---
+            st.write("")
+            
+            # Renderizado como lista HTML limpia
+            for index, row in df_view.iterrows():
+                st.markdown(f"""
+                <div class="news-container">
+                    <div class="news-meta">
+                        {row['Date_Str']} | {row['Market']} | <span class="news-source">{row['Source']}</span>
+                    </div>
+                    <a href="{row['Link']}" target="_blank" class="news-title">
+                        {row['Headline']}
+                    </a>
+                </div>
+                """, unsafe_allow_html=True)
+                
+    else:
+        st.info(f"Sin señales relevantes para el periodo: {periodo_sel}.")
+
+# --- FOOTER EN INGLÉS ---
 st.markdown("""
     <div class="custom-footer">
         Development & (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

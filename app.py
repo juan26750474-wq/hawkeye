@@ -16,7 +16,7 @@ st.set_page_config(page_title="Global Intel AI", layout="centered")
 
 # ⚠️ IMPORTANTE: Pon aquí tu API KEY de Google Gemini
 # Lo ideal es usar st.secrets, pero para este ejemplo la ponemos en variable
-GEMINI_API_KEY = "PON_AQUI_TU_API_KEY_DE_GOOGLE" 
+GEMINI_API_KEY = "AIzaSyC8bQvMCvWCAYIwihZx2w1HgkMBDMl_n5E" 
 
 # --- 2. ESTILOS CSS (Mantenemos tu estilo visual) ---
 st.markdown("""
@@ -258,6 +258,7 @@ if btn_buscar and tema_busqueda:
                 st.markdown("---")
     else:
         st.warning("No se encontraron noticias relevantes en el periodo seleccionado.")
+
 
 
 

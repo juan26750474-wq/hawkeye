@@ -12,7 +12,7 @@ import pandas as pd
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="Strategic Intel Board", layout="wide", page_icon="📡")
 
-# ⚠️⚠️⚠️ PON TU CLAVE AQUÍ ⚠️⚠️⚠️
+# ⚠️ TU CLAVE AQUÍ
 GEMINI_API_KEY = "AIzaSyC8bQvMCvWCAYIwihZx2w1HgkMBDMl_n5E"
 
 if GEMINI_API_KEY.startswith("AIza"):
@@ -24,30 +24,28 @@ if GEMINI_API_KEY.startswith("AIza"):
 # --- 2. ESTILOS ---
 st.markdown("""
 <style>
-    /* Tarjetas de métricas */
     .metric-container {
         border: 1px solid #e0e0e0;
         border-radius: 8px;
-        padding: 15px;
+        padding: 10px;
         background-color: white;
         text-align: center;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    .metric-number { font-size: 28px; font-weight: bold; color: #0066cc; }
-    .metric-label { font-size: 14px; color: #666; font-weight: 500; text-transform: uppercase; }
+    .metric-number { font-size: 24px; font-weight: bold; color: #0066cc; }
+    .metric-label { font-size: 13px; color: #666; font-weight: 500; text-transform: uppercase; }
     
-    /* Informe IA */
     .ia-report {
-        background-color: #f8f9fa;
-        padding: 30px;
-        border-radius: 10px;
-        border-left: 5px solid #0066cc;
-        margin-top: 20px;
-        margin-bottom: 30px;
+        background-color: #fcfcfc;
+        padding: 25px;
+        border-radius: 8px;
+        border: 1px solid #eee;
+        border-left: 5px solid #28a745; /* Verde Estratégico */
         font-family: 'Segoe UI', sans-serif;
     }
-    .ia-report h3 { color: #004488; margin-top: 20px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
-    .ia-report strong { color: #333; }
+    .ia-report h3 { color: #2e7d32; margin-top: 20px; font-size: 1.1em; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+    .ia-report h2 { font-size: 1.3em; color: #333; }
+    .ia-report strong { color: #000; font-weight: 600; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,7 +55,6 @@ def limpiar_html(texto):
     return html.unescape(re.sub(r'<[^>]+>', '', texto)).strip()
 
 def obtener_noticias(tema, dias):
-    # Configuración de mercados
     mercados = {
         "🇪🇸 España":   {"gl": "ES", "hl": "es-419", "lang": "es"},
         "🇲🇦 Marruecos": {"gl": "MA", "hl": "fr",     "lang": "fr"}, 
@@ -70,22 +67,20 @@ def obtener_noticias(tema, dias):
     fecha_limite = datetime.now() - timedelta(days=dias)
     lista_noticias = []
     
-    # Elementos de UI para el progreso
     progreso_texto = st.empty()
     barra_progreso = st.progress(0)
     total_mercados = len(mercados)
     
     for i, (nombre_pais, params) in enumerate(mercados.items()):
-        progreso_texto.text(f"📡 Escaneando fuentes en {nombre_pais}...")
+        progreso_texto.text(f"📡 Rastreando {nombre_pais}...")
         barra_progreso.progress((i + 1) / total_mercados)
         
         try:
-            # 1. Traducir búsqueda
             query = tema
             if params['lang'] != 'es':
                 query = GoogleTranslator(source='es', target=params['lang']).translate(tema)
             
-            # 2. Construir URL
+            # Filtro de fecha en Google (when:Xd)
             q_enc = urllib.parse.quote(query) + (f"+when:{dias}d" if dias < 300 else "+when:1y")
             url = f"https://news.google.com/rss/search?q={q_enc}&hl={params['hl']}&gl={params['gl']}&ceid={params['gl']}:{params['hl']}"
             
@@ -97,7 +92,6 @@ def obtener_noticias(tema, dias):
                     if dt >= fecha_limite:
                         tit_orig = limpiar_html(entry.title)
                         tit_es = tit_orig
-                        # Traducir titular si no es español
                         if params['lang'] != 'es':
                             tit_es = GoogleTranslator(source=params['lang'], target='es').translate(tit_orig)
                         
@@ -117,46 +111,49 @@ def obtener_noticias(tema, dias):
     return pd.DataFrame(lista_noticias)
 
 def consultar_cerebro_digital(df_noticias, tema, rol):
-    if df_noticias.empty: return "No hay datos para analizar."
+    if df_noticias.empty: return "Falta información."
 
-    # Contexto para la IA (limitado a 40 titulares para eficiencia)
+    # Contexto para la IA
     raw_text = ""
-    for _, row in df_noticias.head(40).iterrows():
+    # Enviamos hasta 50 titulares para que tenga de donde escoger
+    for _, row in df_noticias.head(50).iterrows():
         raw_text += f"- [{row['pais']}] {row['fuente']}: {row['titulo_es']}\n"
+    
+    # Fecha actual real para evitar errores de predicción temporal
+    hoy = datetime.now().strftime("%d de %B de %Y")
 
     prompt = f"""
-    Actúa como un CONSULTOR DE ESTRATEGIA DE NEGOCIO Senior.
+    Eres un ANALISTA DE INTELIGENCIA ESTRATÉGICA.
+    FECHA ACTUAL: {hoy}. (Toda previsión debe partir de esta fecha hacia el futuro).
     
-    PERFIL DEL CLIENTE: "{rol}"
-    TEMA: "{tema}"
+    PERFIL USUARIO: "{rol}"
+    OBJETIVO: "{tema}"
     
-    NOTICIAS RECIENTES:
+    NOTICIAS BRUTAS DISPONIBLES:
     {raw_text}
     
     ---
-    INSTRUCCIONES: Genera un informe ejecutivo para la toma de decisiones.
-    NO inventes datos. Usa solo las noticias proporcionadas.
+    INSTRUCCIONES CRÍTICAS:
+    1. **SELECCIÓN INTELIGENTE:** Ignora las noticias irrelevantes o repetitivas. Usa solo las que aporten valor estratégico real.
+    2. **CERO INTRODUCCIONES:** No saludes. No digas "A continuación presento...". Empieza directo con el primer punto.
+    3. **PREVISIÓN FUTURA:** Si la noticia es de hoy, proyéctala. Nunca hables de años pasados como "previsión".
     
-    ESTRUCTURA DEL INFORME:
+    ESTRUCTURA OBLIGATORIA DEL INFORME:
     
-    ### ⚡ Situación Actual
-    (Resumen breve de qué está pasando en los mercados analizados).
+    ### ⚡ Situación Actual (Resumen Ejecutivo)
+    (Sintetiza qué está pasando ahora mismo en los mercados clave. Cita fuentes específicas).
     
-    ### 📅 Horizontes de Decisión
+    ### 🔮 Previsión a 3 Meses (Táctico)
+    (Decisiones inmediatas: precios, stock, ventas. ¿Qué va a pasar en el corto plazo?)
     
-    **1. Corto Plazo (Acción Inmediata)**
-    * **Recomendación:** [Acción concreta]
-    * **Motivo:** (Cita qué medio o país reporta el dato clave).
+    ### 🚀 Previsión a 6 Meses (Estratégico)
+    (Tendencias de la próxima campaña/semestre. Cambios en competencia).
     
-    **2. Medio Plazo (Próximos meses)**
-    * **Tendencia:** (¿Precios/Situación al alza o baja?)
-    * **Alerta:** (Riesgos regulatorios o de competencia).
+    ### 🔭 Visión a 1 Año (Largo Plazo)
+    (Cambios estructurales, regulatorios o tecnológicos que afectarán al negocio).
     
-    **3. Largo Plazo (Estrategia)**
-    * **Visión:** Cambios estructurales.
-    
-    ### 🎯 Conclusión Ejecutiva
-    (Una sola frase final de consejo).
+    ### 🎯 Acción Recomendada
+    (Una frase directa en imperativo).
     """
 
     try:
@@ -169,78 +166,78 @@ def consultar_cerebro_digital(df_noticias, tema, rol):
 # --- 4. INTERFAZ ---
 
 st.title("🛡️ Centro de Inteligencia Competitiva")
-st.markdown("Monitorización estratégica de mercados internacionales.")
 
-# --- BARRA LATERAL (CORREGIDA) ---
+# --- BARRA LATERAL ---
 with st.sidebar:
-    st.header("⚙️ Configuración")
+    st.header("⚙️ Parámetros")
     
-    # IMPORTANTE: Todo input que afecte al botón debe ir dentro del form
     with st.form("formulario_inteligencia"):
-        st.subheader("1. Objetivo")
-        tema = st.text_input("Tema / Producto", value="Tomate")
+        st.subheader("1. Foco")
+        tema = st.text_input("Tema / Producto", value="Tomate Exportación")
         
-        st.subheader("2. Tu Perfil")
-        rol = st.text_area("Contexto para la IA", 
-                           value="Soy exportador agrícola en Almería. Quiero saber si Marruecos tiene problemas de cosecha para decidir mis precios.",
-                           height=120)
+        st.subheader("2. Contexto de Negocio")
+        rol = st.text_area("Define tu rol y duda", 
+                           value="Productor en Almería. ¿Cómo afectará la producción de Marruecos y Holanda a mis precios esta campaña?",
+                           height=100)
         
-        st.subheader("3. Periodo")
-        periodo_map = {"24 Horas": 1, "3 Días": 3, "7 Días": 7, "30 Días": 30}
-        periodo_sel = st.selectbox("Ventana de análisis", list(periodo_map.keys()), index=2)
+        st.subheader("3. Horizonte de Búsqueda")
+        # Por defecto 30 días para tener perspectiva
+        periodo_map = {"24 Horas": 1, "7 Días": 7, "30 Días": 30, "90 Días": 90}
+        periodo_sel = st.selectbox("Rastreo hacia atrás:", list(periodo_map.keys()), index=2)
         
-        # Botón DENTRO del formulario
-        btn_run = st.form_submit_button("🚀 EJECUTAR INTELIGENCIA", type="primary")
+        btn_run = st.form_submit_button("🚀 GENERAR ESTRATEGIA", type="primary")
 
-    # Variable dias fuera del form para usarla después
     dias = periodo_map[periodo_sel]
 
 # --- LÓGICA PRINCIPAL ---
 
 if btn_run:
     if "PON_AQUI" in GEMINI_API_KEY:
-        st.error("⚠️ Error: Configura la API KEY en el código.")
+        st.error("⚠️ Configura la API KEY.")
         st.stop()
 
-    # 1. Obtención de datos
     df = obtener_noticias(tema, dias)
 
     if not df.empty:
-        # --- SECCIÓN A: MÉTRICAS (Datos Reales) ---
-        st.markdown("### 📊 Radiografía de Fuentes")
+        # --- MÉTRICAS ---
+        st.markdown("### 📊 Panel de Fuentes")
         
-        col1, col2, col3, col4 = st.columns(4)
-        col1.markdown(f'<div class="metric-container"><div class="metric-number">{len(df)}</div><div class="metric-label">Noticias</div></div>', unsafe_allow_html=True)
-        col2.markdown(f'<div class="metric-container"><div class="metric-number">{df["pais"].nunique()}</div><div class="metric-label">Países</div></div>', unsafe_allow_html=True)
-        col3.markdown(f'<div class="metric-container"><div class="metric-number">{df["fuente"].nunique()}</div><div class="metric-label">Medios</div></div>', unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 1.5]) # Ajuste ancho columnas
         
-        with col4:
-            st.caption("Distribución")
-            st.bar_chart(df['pais'].value_counts(), color="#0066cc", height=80)
+        c1.markdown(f'<div class="metric-container"><div class="metric-number">{len(df)}</div><div class="metric-label">Noticias</div></div>', unsafe_allow_html=True)
+        c2.markdown(f'<div class="metric-container"><div class="metric-number">{df["pais"].nunique()}</div><div class="metric-label">Mercados</div></div>', unsafe_allow_html=True)
+        c3.markdown(f'<div class="metric-container"><div class="metric-number">{df["fuente"].nunique()}</div><div class="metric-label">Medios</div></div>', unsafe_allow_html=True)
+        
+        with c4:
+            # Gráfico Pequeño y limpio
+            counts = df['pais'].value_counts()
+            st.bar_chart(counts, height=80, color="#0066cc")
 
-        # --- SECCIÓN B: INFORME IA ---
+        # --- INFORME ---
         st.markdown("---")
-        st.subheader("🧠 Informe de Decisión")
+        st.subheader("🧠 Análisis de Escenarios Futuros")
         
-        with st.spinner("Analizando implicaciones estratégicas..."):
+        with st.spinner("La IA está cruzando datos y proyectando escenarios..."):
             analisis = consultar_cerebro_digital(df, tema, rol)
             
         st.markdown(f'<div class="ia-report">{analisis}</div>', unsafe_allow_html=True)
 
-        # --- SECCIÓN C: EVIDENCIAS ---
-        with st.expander("📂 Ver Tabla de Fuentes Originales", expanded=True):
+        # --- EVIDENCIAS ---
+        with st.expander("🔎 Auditoría de Fuentes (Clic para desplegar)", expanded=False):
             st.dataframe(
                 df[['fecha_str', 'pais', 'fuente', 'titulo_es', 'link']],
                 column_config={
-                    "link": st.column_config.LinkColumn("Enlace"),
-                    "titulo_es": "Titular (Traducido)"
+                    "link": st.column_config.LinkColumn("Leer Original"),
+                    "titulo_es": "Titular Detectado",
+                    "pais": "Mercado Origen"
                 },
                 use_container_width=True,
                 hide_index=True
             )
 
     else:
-        st.warning(f"No se encontraron noticias recientes sobre '{tema}'. Intenta ampliar el periodo o cambiar el término.")
+        st.warning(f"No se detectaron señales relevantes sobre '{tema}' en el periodo seleccionado.")
+
 
 
 

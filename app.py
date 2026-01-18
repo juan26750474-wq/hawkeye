@@ -8,9 +8,10 @@ from time import mktime
 import html
 import re
 import pandas as pd
+import altair as alt
 
 # --- 1. CONFIGURACIÓN ---
-st.set_page_config(page_title="Strategic Intel Board", layout="wide", page_icon="📡")
+st.set_page_config(page_title="Strategic Intel Board", layout="wide", page_icon="🛡️")
 
 # ⚠️ TU CLAVE AQUÍ
 GEMINI_API_KEY = "AIzaSyC8bQvMCvWCAYIwihZx2w1HgkMBDMl_n5E"
@@ -21,71 +22,94 @@ if GEMINI_API_KEY.startswith("AIza"):
     except Exception as e:
         st.error(f"Error de API: {e}")
 
-# --- 2. ESTILOS ---
+# --- 2. ESTILOS CSS (DISEÑO CLEAN & PRO) ---
 st.markdown("""
 <style>
-    .metric-container {
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        padding: 10px;
-        background-color: white;
-        text-align: center;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    .metric-number { font-size: 24px; font-weight: bold; color: #0066cc; }
-    .metric-label { font-size: 13px; color: #666; font-weight: 500; text-transform: uppercase; }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    [data-testid="stToolbar"] {visibility: hidden;}
     
-    .ia-report {
-        background-color: #fcfcfc;
-        padding: 25px;
+    /* Métricas limpias */
+    div[data-testid="metric-container"] {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        padding: 10px;
         border-radius: 8px;
-        border: 1px solid #eee;
-        border-left: 5px solid #28a745; /* Verde Estratégico */
-        font-family: 'Segoe UI', sans-serif;
+        text-align: center;
     }
-    .ia-report h3 { color: #2e7d32; margin-top: 20px; font-size: 1.1em; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
-    .ia-report h2 { font-size: 1.3em; color: #333; }
-    .ia-report strong { color: #000; font-weight: 600; }
+    
+    /* Informe estilo SITREP (Situational Report) */
+    .ia-report {
+        background-color: #ffffff;
+        padding: 30px;
+        border-radius: 4px;
+        border-top: 4px solid #2c3e50; /* Azul oscuro sobrio */
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        font-family: 'Georgia', serif; /* Tipografía más seria para lectura */
+        margin-bottom: 30px;
+    }
+    .ia-report h3 { 
+        color: #2c3e50; 
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 1.1em; 
+        text-transform: uppercase; 
+        letter-spacing: 1px;
+        margin-top: 25px; 
+        border-bottom: 1px solid #eee;
+        padding-bottom: 5px;
+    }
+    .ia-report li { margin-bottom: 6px; }
+    
+    /* Footer */
+    .custom-footer {
+        position: fixed;
+        bottom: 0; left: 0; width: 100%;
+        background-color: #ffffff;
+        color: #888;
+        text-align: center;
+        padding: 8px;
+        font-size: 0.75em;
+        border-top: 1px solid #eee;
+        z-index: 999;
+        font-family: sans-serif;
+    }
+    
+    .block-container { padding-top: 2rem; padding-bottom: 6rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. FUNCIONES ---
+# --- 3. LÓGICA DE EXTRACCIÓN ---
 
 def limpiar_html(texto):
     return html.unescape(re.sub(r'<[^>]+>', '', texto)).strip()
 
 def obtener_noticias(tema, dias):
+    # Selección estratégica de mercados
     mercados = {
-        "🇪🇸 España":   {"gl": "ES", "hl": "es-419", "lang": "es"},
-        "🇲🇦 Marruecos": {"gl": "MA", "hl": "fr",     "lang": "fr"}, 
-        "🇳🇱 Holanda":   {"gl": "NL", "hl": "nl",     "lang": "nl"},
-        "🇩🇪 Alemania":  {"gl": "DE", "hl": "de",     "lang": "de"},
-        "🇫🇷 Francia":   {"gl": "FR", "hl": "fr",     "lang": "fr"},
-        "🇬🇧 UK/Intl":   {"gl": "GB", "hl": "en",     "lang": "en"}
+        "🇪🇸 ES":   {"gl": "ES", "hl": "es-419", "lang": "es"},
+        "🇲🇦 MA":   {"gl": "MA", "hl": "fr",     "lang": "fr"}, 
+        "🇳🇱 NL":   {"gl": "NL", "hl": "nl",     "lang": "nl"},
+        "🇩🇪 DE":   {"gl": "DE", "hl": "de",     "lang": "de"},
+        "🇫🇷 FR":   {"gl": "FR", "hl": "fr",     "lang": "fr"},
+        "🇬🇧 UK":   {"gl": "GB", "hl": "en",     "lang": "en"}
     }
 
     fecha_limite = datetime.now() - timedelta(days=dias)
     lista_noticias = []
     
-    progreso_texto = st.empty()
-    barra_progreso = st.progress(0)
-    total_mercados = len(mercados)
+    progreso = st.progress(0)
     
     for i, (nombre_pais, params) in enumerate(mercados.items()):
-        progreso_texto.text(f"📡 Rastreando {nombre_pais}...")
-        barra_progreso.progress((i + 1) / total_mercados)
-        
+        progreso.progress((i + 1) / len(mercados))
         try:
             query = tema
             if params['lang'] != 'es':
                 query = GoogleTranslator(source='es', target=params['lang']).translate(tema)
             
-            # Filtro de fecha en Google (when:Xd)
             q_enc = urllib.parse.quote(query) + (f"+when:{dias}d" if dias < 300 else "+when:1y")
             url = f"https://news.google.com/rss/search?q={q_enc}&hl={params['hl']}&gl={params['gl']}&ceid={params['gl']}:{params['hl']}"
             
             feed = feedparser.parse(url)
-            
             for entry in feed.entries:
                 if hasattr(entry, 'published_parsed'):
                     dt = datetime.fromtimestamp(mktime(entry.published_parsed))
@@ -103,57 +127,57 @@ def obtener_noticias(tema, dias):
                             "titulo_es": tit_es,
                             "link": entry.link
                         })
-        except Exception:
-            continue
+        except: continue
             
-    progreso_texto.empty()
-    barra_progreso.empty()
+    progreso.empty()
     return pd.DataFrame(lista_noticias)
 
-def consultar_cerebro_digital(df_noticias, tema, rol):
-    if df_noticias.empty: return "Falta información."
-
-    # Contexto para la IA
+def generar_sitrep(df_noticias, tema, rol):
+    if df_noticias.empty: return "Sin inteligencia disponible."
+    
     raw_text = ""
-    # Enviamos hasta 50 titulares para que tenga de donde escoger
-    for _, row in df_noticias.head(50).iterrows():
+    # Priorizamos las noticias más recientes
+    df_sorted = df_noticias.sort_values(by="fecha", ascending=False)
+    for _, row in df_sorted.head(50).iterrows():
         raw_text += f"- [{row['pais']}] {row['fuente']}: {row['titulo_es']}\n"
     
-    # Fecha actual real para evitar errores de predicción temporal
     hoy = datetime.now().strftime("%d de %B de %Y")
 
     prompt = f"""
-    Eres un ANALISTA DE INTELIGENCIA ESTRATÉGICA.
-    FECHA ACTUAL: {hoy}. (Toda previsión debe partir de esta fecha hacia el futuro).
-    
-    PERFIL USUARIO: "{rol}"
+    Actúa como ANALISTA DE INTELIGENCIA ESTRATÉGICA (Nivel Senior).
+    FECHA ACTUAL: {hoy}.
     OBJETIVO: "{tema}"
+    PERFIL RECEPTOR: "{rol}"
     
-    NOTICIAS BRUTAS DISPONIBLES:
+    INTELIGENCIA BRUTA (NOTICIAS):
     {raw_text}
     
     ---
-    INSTRUCCIONES CRÍTICAS:
-    1. **SELECCIÓN INTELIGENTE:** Ignora las noticias irrelevantes o repetitivas. Usa solo las que aporten valor estratégico real.
-    2. **CERO INTRODUCCIONES:** No saludes. No digas "A continuación presento...". Empieza directo con el primer punto.
-    3. **PREVISIÓN FUTURA:** Si la noticia es de hoy, proyéctala. Nunca hables de años pasados como "previsión".
+    INSTRUCCIONES DE FORMATO:
+    1. **NO DES CONSEJOS OBVIOS** (Ej: "venda caro", "ahorre costes"). Eso el usuario ya lo sabe.
+    2. Céntrate en **CAUSA-EFECTO**. (Ej: "Huelga en Tánger -> Retraso de 48h en envíos -> Ventana de oportunidad en precios").
+    3. Sé sintético, frío y directo. Usa lenguaje profesional/económico.
     
-    ESTRUCTURA OBLIGATORIA DEL INFORME:
+    ESTRUCTURA DEL SITREP (Situation Report):
     
-    ### ⚡ Situación Actual (Resumen Ejecutivo)
-    (Sintetiza qué está pasando ahora mismo en los mercados clave. Cita fuentes específicas).
+    ### ⚡ Estado de Situación (Executive Summary)
+    (Síntesis de la dinámica actual del mercado basada en los hechos leídos. ¿Alcista, bajista, volátil? Cita fuentes).
     
-    ### 🔮 Previsión a 3 Meses (Táctico)
-    (Decisiones inmediatas: precios, stock, ventas. ¿Qué va a pasar en el corto plazo?)
+    ### 📅 Proyecciones e Impacto
     
-    ### 🚀 Previsión a 6 Meses (Estratégico)
-    (Tendencias de la próxima campaña/semestre. Cambios en competencia).
+    **Corto Plazo (1-4 Semanas)**
+    * **Dinámica:** [Análisis de flujo de mercado inmediato]
+    * **Factor Crítico:** [Noticia específica que mueve la aguja esta semana]
     
-    ### 🔭 Visión a 1 Año (Largo Plazo)
-    (Cambios estructurales, regulatorios o tecnológicos que afectarán al negocio).
+    **Medio Plazo (1-6 Meses)**
+    * **Tendencia:** [Proyección basada en datos]
+    * **Riesgos/Oportunidades:** [Regulaciones, clima, competencia]
     
-    ### 🎯 Acción Recomendada
-    (Una frase directa en imperativo).
+    **Largo Plazo (Visión 1 Año)**
+    * **Escenario Estructural:** [Cambios de fondo detectados]
+    
+    ### 🛑 Señales de Alerta (Red Flags)
+    (Solo si hay riesgos graves detectados en las noticias: plagas, leyes, aranceles).
     """
 
     try:
@@ -161,35 +185,35 @@ def consultar_cerebro_digital(df_noticias, tema, rol):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Error IA: {str(e)}"
+        return f"Error generando SITREP: {str(e)}"
 
-# --- 4. INTERFAZ ---
+# --- 4. INTERFAZ (DISEÑO HORIZONTAL) ---
 
-st.title("🛡️ Centro de Inteligencia Competitiva")
+st.title("🛡️ Strategic Intel Board")
+st.caption("Sistema de Soporte a la Decisión")
 
-# --- BARRA LATERAL ---
-with st.sidebar:
-    st.header("⚙️ Parámetros")
+with st.form("main_form"):
+    c1, c2, c3, c4 = st.columns([2, 4, 1.5, 1.5])
     
-    with st.form("formulario_inteligencia"):
-        st.subheader("1. Foco")
-        tema = st.text_input("Tema / Producto", value="Tomate Exportación")
+    with c1:
+        st.write("**Foco de Análisis**")
+        tema = st.text_input("Tema", value="Tomate Exportación", label_visibility="collapsed")
+    
+    with c2:
+        st.write("**Perfil Estratégico**")
+        rol = st.text_input("Rol", value="Productor Almería. Busco ventanas de precio frente a Marruecos.", label_visibility="collapsed")
         
-        st.subheader("2. Contexto de Negocio")
-        rol = st.text_area("Define tu rol y duda", 
-                           value="Productor en Almería. ¿Cómo afectará la producción de Marruecos y Holanda a mis precios esta campaña?",
-                           height=100)
+    with c3:
+        st.write("**Ventana**")
+        periodo_map = {"24 Horas": 1, "7 Días": 7, "30 Días": 30, "Trimestre": 90}
+        periodo_sel = st.selectbox("Tiempo", list(periodo_map.keys()), index=2, label_visibility="collapsed")
         
-        st.subheader("3. Horizonte de Búsqueda")
-        # Por defecto 30 días para tener perspectiva
-        periodo_map = {"24 Horas": 1, "7 Días": 7, "30 Días": 30, "90 Días": 90}
-        periodo_sel = st.selectbox("Rastreo hacia atrás:", list(periodo_map.keys()), index=2)
-        
-        btn_run = st.form_submit_button("🚀 GENERAR ESTRATEGIA", type="primary")
+    with c4:
+        st.write("") 
+        st.write("") 
+        btn_run = st.form_submit_button("🔎 ANALIZAR", type="primary", use_container_width=True)
 
-    dias = periodo_map[periodo_sel]
-
-# --- LÓGICA PRINCIPAL ---
+dias = periodo_map[periodo_sel]
 
 if btn_run:
     if "PON_AQUI" in GEMINI_API_KEY:
@@ -199,44 +223,54 @@ if btn_run:
     df = obtener_noticias(tema, dias)
 
     if not df.empty:
-        # --- MÉTRICAS ---
-        st.markdown("### 📊 Panel de Fuentes")
+        st.write("")
         
-        c1, c2, c3, c4 = st.columns([1, 1, 1, 1.5]) # Ajuste ancho columnas
+        # --- TOP: GRÁFICO Y MÉTRICAS ---
+        col_graph, col_kpi = st.columns([3, 1])
         
-        c1.markdown(f'<div class="metric-container"><div class="metric-number">{len(df)}</div><div class="metric-label">Noticias</div></div>', unsafe_allow_html=True)
-        c2.markdown(f'<div class="metric-container"><div class="metric-number">{df["pais"].nunique()}</div><div class="metric-label">Mercados</div></div>', unsafe_allow_html=True)
-        c3.markdown(f'<div class="metric-container"><div class="metric-number">{df["fuente"].nunique()}</div><div class="metric-label">Medios</div></div>', unsafe_allow_html=True)
-        
-        with c4:
-            # Gráfico Pequeño y limpio
-            counts = df['pais'].value_counts()
-            st.bar_chart(counts, height=80, color="#0066cc")
-
-        # --- INFORME ---
-        st.markdown("---")
-        st.subheader("🧠 Análisis de Escenarios Futuros")
-        
-        with st.spinner("La IA está cruzando datos y proyectando escenarios..."):
-            analisis = consultar_cerebro_digital(df, tema, rol)
+        with col_graph:
+            # Gráfico minimalista
+            chart = alt.Chart(df).mark_bar(color='#2c3e50').encode(
+                x=alt.X('count()', title=None),
+                y=alt.Y('pais', sort='-x', title=None),
+                tooltip=['pais', 'count()']
+            ).properties(height=120, title="Volumen de Señales por Mercado")
+            st.altair_chart(chart, use_container_width=True)
             
-        st.markdown(f'<div class="ia-report">{analisis}</div>', unsafe_allow_html=True)
+        with col_kpi:
+            st.metric("Fuentes", df["fuente"].nunique())
+            st.metric("Señales", len(df))
 
-        # --- EVIDENCIAS ---
-        with st.expander("🔎 Auditoría de Fuentes (Clic para desplegar)", expanded=False):
+        # --- BODY: SITREP (IA) ---
+        st.markdown("---")
+        with st.spinner("Procesando inteligencia..."):
+            sitrep = generar_sitrep(df, tema, rol)
+            
+        st.markdown(f'<div class="ia-report">{sitrep}</div>', unsafe_allow_html=True)
+
+        # --- FOOTER: TABLA DE DATOS ---
+        with st.expander("📂 Fuentes de Inteligencia (Raw Data)", expanded=False):
             st.dataframe(
                 df[['fecha_str', 'pais', 'fuente', 'titulo_es', 'link']],
                 column_config={
-                    "link": st.column_config.LinkColumn("Leer Original"),
-                    "titulo_es": "Titular Detectado",
-                    "pais": "Mercado Origen"
+                    "fecha_str": st.column_config.TextColumn("Fecha", width="small"),
+                    "pais": st.column_config.TextColumn("Origen", width="small"),
+                    "fuente": st.column_config.TextColumn("Medio", width="medium"),
+                    "titulo_es": st.column_config.TextColumn("Titular", width="large"),
+                    "link": st.column_config.LinkColumn("Ref", display_text="(Ver)")
                 },
                 use_container_width=True,
                 hide_index=True
             )
-
     else:
-        st.warning(f"No se detectaron señales relevantes sobre '{tema}' en el periodo seleccionado.")
+        st.info(f"Sin actividad relevante sobre '{tema}' en el periodo seleccionado.")
+
+# --- FOOTER CORPORATIVO ---
+st.markdown("""
+    <div class="custom-footer">
+        Desarrollo y (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
+    </div>
+""", unsafe_allow_html=True)
 
 
 

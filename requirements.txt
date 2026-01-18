@@ -1,6 +1,6 @@
 streamlit
 feedparser
-requests
-vaderSentiment
-deep-translator
 google-generativeai>=0.7.2
+deep-translator
+pandas
+

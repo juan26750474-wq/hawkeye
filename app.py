@@ -167,6 +167,7 @@ def generar_sitrep(df_noticias, tema, rol):
     
     SALIDA:
     3 párrafos de análisis de alto nivel.
+    4. Nombra las fuentes en las que te basas para opinar sobre un asunto.
     """
 
     try:
@@ -274,6 +275,7 @@ st.markdown("""
         Development & (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

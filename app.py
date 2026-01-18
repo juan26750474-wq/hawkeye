@@ -21,63 +21,41 @@ if GEMINI_API_KEY.startswith("AIza"):
     except Exception as e:
         st.error(f"API Error: {e}")
 
-# --- 2. MODERN CSS STYLES ---
+# --- 2. CSS STYLES ---
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     [data-testid="stToolbar"] {visibility: hidden;}
     
-    /* Modern SITREP Report Box */
+    /* SITREP Box */
     .ia-report {
         background-color: #ffffff;
         padding: 30px;
         border-radius: 8px;
-        border-top: 4px solid #0056b3; /* Corporate Blue */
+        border-top: 4px solid #0056b3; 
         box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        font-size: 1.05em;
-        line-height: 1.6;
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 1.0em;
+        line-height: 1.5;
         color: #2c3e50;
     }
-    .ia-report strong { color: #0056b3; font-weight: 600; }
+    .ia-report strong { color: #0056b3; }
     
-    /* Inputs styling */
+    /* Inputs */
     .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {
         background-color: #f8f9fa;
         border: 1px solid #e9ecef;
-        border-radius: 4px;
     }
-    
-    /* Custom Table Styling for readability */
-    .news-row {
-        padding: 15px 0;
-        border-bottom: 1px solid #eee;
-    }
-    .news-headline {
-        font-size: 1.1em;
-        font-weight: 500;
-        color: #2c3e50;
-        line-height: 1.4;
-    }
-    .news-meta { font-size: 0.85em; color: #7f8c8d; }
-    .news-link a { 
-        color: #0056b3; 
-        text-decoration: none; 
-        font-weight: bold; 
-        border: 1px solid #0056b3; 
-        padding: 4px 10px; 
-        border-radius: 4px;
-    }
-    .news-link a:hover { background-color: #0056b3; color: white; }
     
     /* Footer */
     .custom-footer {
         position: fixed; bottom: 0; left: 0; width: 100%;
         background-color: #ffffff; color: #95a5a6;
-        text-align: center; padding: 12px; font-size: 0.8em;
+        text-align: center; padding: 12px; font-size: 0.75em;
         border-top: 1px solid #eaeaea; z-index: 999;
         letter-spacing: 0.5px;
+        font-family: sans-serif;
     }
     
     .block-container { padding-top: 2rem; padding-bottom: 6rem; }
@@ -125,12 +103,12 @@ def obtener_noticias(tema, dias):
                             tit_es = GoogleTranslator(source=params['lang'], target='es').translate(tit_orig)
                         
                         lista_noticias.append({
-                            "pais": nombre_pais,
-                            "fuente": entry.source.title,
-                            "fecha": dt,
-                            "fecha_str": dt.strftime("%Y-%m-%d"),
-                            "titulo_es": tit_es,
-                            "link": entry.link
+                            "Market": nombre_pais,
+                            "Source": entry.source.title,
+                            "Date": dt, # Objeto fecha real para ordenar
+                            "Date_Str": dt.strftime("%Y-%m-%d"),
+                            "Headline": tit_es,
+                            "Link": entry.link
                         })
         except: continue
             
@@ -138,32 +116,33 @@ def obtener_noticias(tema, dias):
     return pd.DataFrame(lista_noticias)
 
 def generar_sitrep(df_noticias, tema, rol):
-    if df_noticias.empty: return "No intelligence data available."
+    if df_noticias.empty: return "No hay información disponible."
     
     raw_text = ""
-    df_sorted = df_noticias.sort_values(by="fecha", ascending=False)
+    # Ordenamos por fecha para la IA
+    df_sorted = df_noticias.sort_values(by="Date", ascending=False)
     for _, row in df_sorted.head(70).iterrows(): 
-        raw_text += f"- [{row['pais']}] {row['fuente']}: {row['titulo_es']}\n"
+        raw_text += f"- [{row['Market']}] {row['Source']}: {row['Headline']}\n"
     
-    hoy = datetime.now().strftime("%B %d, %Y")
+    hoy = datetime.now().strftime("%d de %B de %Y")
 
     prompt = f"""
-    ACT AS: Senior Business Intelligence Analyst.
-    DATE: {hoy}.
-    FOCUS: "{tema}"
-    PROFILE: "{rol}"
+    Eres un ANALISTA DE INTELIGENCIA ESTRATÉGICA (Senior).
+    FECHA: {hoy}.
+    FOCO: "{tema}"
+    PERFIL: "{rol}"
     
-    RAW INTEL (NEWS):
+    INTELIGENCIA BRUTA (NOTICIAS):
     {raw_text}
     
-    INSTRUCTIONS:
-    1. Generate a pure "SITUATION REPORT" (SITREP).
-    2. FOCUS ONLY ON CURRENT FACTS & MARKET DYNAMICS. No predictions, no advice, no future threats.
-    3. Cross-reference data between countries (e.g., "While NL supply tightens, MA export volumes increase...").
-    4. Style: Dense, direct, professional English.
+    INSTRUCCIONES:
+    1. Genera un "ESTADO DE SITUACIÓN" (SITREP) en **ESPAÑOL**.
+    2. Céntrate SOLO EN HECHOS ACTUALES y DINÁMICAS DE MERCADO.
+    3. Cero consejos, cero predicciones, cero paja.
+    4. Cruza datos entre países (Ej: "Marruecos baja volumen mientras Holanda sube precios").
     
-    OUTPUT FORMAT:
-    Provide 3 solid paragraphs summarizing the current market reality based *strictly* on the provided news.
+    FORMATO DE SALIDA:
+    3 párrafos densos en información y análisis directo en ESPAÑOL.
     """
 
     try:
@@ -171,7 +150,7 @@ def generar_sitrep(df_noticias, tema, rol):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Analysis Error: {str(e)}"
+        return f"Error IA: {str(e)}"
 
 # --- 4. INTERFACE ---
 
@@ -212,7 +191,7 @@ dias = periodo_map[periodo_sel]
 
 if btn_run:
     if "PON_AQUI" in GEMINI_API_KEY:
-        st.error("⚠️ Config Error: Please add your API Key to the code.")
+        st.error("⚠️ Error: Please add your API Key.")
         st.stop()
 
     df = obtener_noticias(tema, dias)
@@ -225,51 +204,39 @@ if btn_run:
         
         with col_datos:
             st.markdown("### 📊 Signal Volume")
-            conteo = df['pais'].value_counts().reset_index()
+            # Tabla de métricas limpia
+            conteo = df['Market'].value_counts().reset_index()
             conteo.columns = ['Market', 'Signals']
             st.dataframe(conteo, hide_index=True, use_container_width=True)
-            st.caption(f"Total processed: {len(df)} inputs")
 
         with col_ia:
             st.markdown("### ⚡ Situation Report (SITREP)")
-            with st.spinner("Synthesizing intelligence..."):
+            with st.spinner("Synthesizing intelligence (ES)..."):
                 sitrep = generar_sitrep(df, tema, rol)
             st.markdown(f'<div class="ia-report">{sitrep}</div>', unsafe_allow_html=True)
 
-        # --- CUSTOM READABLE TABLE SECTION ---
+        # --- NEWS FEED (COLLAPSIBLE & SORTABLE) ---
         st.markdown("---")
-        st.markdown("### 📂 Source Intelligence Feed")
-        st.caption("Verified inputs used for analysis.")
-        st.write("")
-
-        # Custom Header
-        h1, h2, h3, h4 = st.columns([1, 1, 4, 1])
-        h1.markdown("**Date / Market**")
-        h2.markdown("**Source**")
-        h3.markdown("**Headline Detected**")
-        h4.markdown("**Reference**")
-        st.divider()
-
-        # Custom Data Rows (Allows full vertical reading)
-        df_sorted = df.sort_values(by="fecha", ascending=False)
-        for index, row in df_sorted.iterrows():
-            with st.container():
-                c1, c2, c3, c4 = st.columns([1, 1, 4, 1])
-                
-                with c1:
-                    st.markdown(f"<div class='news-meta'>📅 {row['fecha_str']}<br>📍 {row['pais']}</div>", unsafe_allow_html=True)
-                with c2:
-                     st.markdown(f"<div class='news-meta'>📰 {row['fuente']}</div>", unsafe_allow_html=True)
-                with c3:
-                    # Headline gets full space to wrap
-                    st.markdown(f"<div class='news-headline'>{row['titulo_es']}</div>", unsafe_allow_html=True)
-                with c4:
-                    st.markdown(f"<div class='news-link'><a href='{row['link']}' target='_blank'>Read Source</a></div>", unsafe_allow_html=True)
-                
-                st.markdown("<div class='news-row'></div>", unsafe_allow_html=True) # Spacer line
-
+        
+        # El expander cumple "que se pueda replegar"
+        with st.expander("📂 Source Intelligence Feed (Click to Expand)", expanded=False):
+            st.caption("Sort by clicking on headers. Text size optimized.")
+            
+            # Dataframe Interactivo (Cumple "que se puedan ordenar")
+            st.dataframe(
+                df[['Date', 'Market', 'Source', 'Headline', 'Link']],
+                column_config={
+                    "Date": st.column_config.DateColumn("Date", format="DD/MM/YYYY", width="small"),
+                    "Market": st.column_config.TextColumn("Market", width="small"),
+                    "Source": st.column_config.TextColumn("Source", width="medium"),
+                    "Headline": st.column_config.TextColumn("Headline", width="large"), # Espacio amplio para titular
+                    "Link": st.column_config.LinkColumn("Ref", display_text="Read")
+                },
+                use_container_width=True,
+                hide_index=True
+            )
     else:
-        st.info(f"No relevant intelligence signals detected for the selected period ({periodo_sel}).")
+        st.info(f"No relevant signals for {periodo_sel}.")
 
 # --- FOOTER ---
 st.markdown("""
@@ -277,6 +244,7 @@ st.markdown("""
         Development & (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

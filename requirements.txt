@@ -1,4 +1,6 @@
 streamlit
 feedparser
+requests
 vaderSentiment
 deep-translator
+google-generativeai

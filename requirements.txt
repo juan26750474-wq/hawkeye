@@ -4,4 +4,3 @@ requests
 vaderSentiment
 deep-translator
 google-generativeai>=0.7.2
-

@@ -163,6 +163,7 @@ def generar_sitrep(df_noticias, tema, rol):
     2. Estilo ejecutivo, directo y basado puramente en los hechos recientes.
     3. Cruza información de orígenes y destinos.
     4. Sólo hacer análisis de situación. No hacer recomendaciones.
+    5. Filtra las noticias para  hacer informe, si se te pide información de países y temas concretos no des información superflua.
     
     SALIDA:
     3 párrafos de análisis de alto nivel.
@@ -273,6 +274,7 @@ st.markdown("""
         Development & (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

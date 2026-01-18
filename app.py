@@ -1,286 +1,264 @@
 import streamlit as st
 import feedparser
+import requests
+import json
+import urllib.parse
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from deep_translator import GoogleTranslator
-import statistics
-import urllib.parse
 from datetime import datetime, timedelta
 from time import mktime
-import string
 import html
 import re
-from collections import Counter
+import statistics
 
-# --- 1. CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Analizador de Reputación JCPM", layout="centered")
+# --- 1. CONFIGURACIÓN Y API KEY ---
+st.set_page_config(page_title="Global Intel AI", layout="centered")
 
-# --- 2. ESTILOS CSS ---
+# ⚠️ IMPORTANTE: Pon aquí tu API KEY de Google Gemini
+# Lo ideal es usar st.secrets, pero para este ejemplo la ponemos en variable
+GEMINI_API_KEY = "PON_AQUI_TU_API_KEY_DE_GOOGLE" 
+
+# --- 2. ESTILOS CSS (Mantenemos tu estilo visual) ---
 st.markdown("""
 <style>
-    /* 1. Ocultar Menú hamburguesa y Pie de página */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    
-    /* 2. Ocultar la barra de herramientas superior derecha (Deploy, tres puntos, etc.) */
     [data-testid="stToolbar"] {visibility: hidden !important;}
-    [data-testid="stDecoration"] {visibility: hidden !important;}
     
-    /* 3. Estilos de la App */
     .noticia-buena { color: #2e7d32; font-weight: bold; background-color: #e8f5e9; padding: 2px 6px; border-radius: 4px; }
     .noticia-mala { color: #d32f2f; font-weight: bold; background-color: #ffebee; padding: 2px 6px; border-radius: 4px; }
     .noticia-neutra { color: #555; font-weight: bold; background-color: #f5f5f5; padding: 2px 6px; border-radius: 4px; }
-    .fuente-fecha { font-size: 0.9em; color: gray; }
+    .fuente-fecha { font-size: 0.8em; color: gray; }
+    .tag-lang { font-size: 0.8em; font-weight: bold; padding: 1px 4px; border: 1px solid #ddd; border-radius: 3px; margin-right: 5px;}
     
-    /* Caja de Análisis IA Dinámico */
+    /* Caja Informe IA */
     .analisis-ia {
-        background-color: #f0f2f6;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 6px solid #ff4b4b;
-        margin-bottom: 25px;
+        background-color: #f8f9fa;
+        padding: 25px;
+        border-radius: 12px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 30px;
     }
-    .analisis-titulo { font-weight: bold; font-size: 1.1em; margin-bottom: 10px; display: flex; align-items: center; }
+    .analisis-titulo { color: #1565c0; font-weight: bold; font-size: 1.2em; margin-bottom: 15px; border-bottom: 2px solid #1565c0; padding-bottom: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- 3. CARGA DE MOTORES ---
 @st.cache_resource
 def cargar_motores():
-    return SentimentIntensityAnalyzer(), GoogleTranslator(source='auto', target='en')
-analizador, traductor = cargar_motores()
+    return SentimentIntensityAnalyzer()
+analizador = cargar_motores()
 
-# --- VARIABLES ---
-STOP_WORDS = {"el", "la", "los", "las", "un", "una", "de", "del", "a", "en", "y", "o", "que", "por", "para", "con", "se", "su", "sus", "es", "al", "lo", "noticia", "news", "report", "the", "to", "in", "for", "on", "of", "and", "is", "ha", "han", "fue", "sus", "sobre", "este", "esta", "como", "pero", "sin", "mas", "año", "años", "gran", "desde", "hasta", "muy", "nos", "les", "esa", "ese", "eso", "porque", "está", "están", "ser", "parte", "todo", "hace", "donde", "quien", "ayer", "hoy", "mañana", "tras", "durante", "según", "entre", "millones", "ciento", "euros"}
+# Instanciamos traductores para no saturar
+traductor_es = GoogleTranslator(source='auto', target='es')
+traductor_en = GoogleTranslator(source='auto', target='en')
 
-DICCIONARIO_EXITO = ["dispara", "multiplica", "duplica", "récord", "lidera", "impulsa", "crece", "aumenta", "superávit", "éxito", "logro", "millonaria", "inversión", "skyrocket", "doubles", "record", "leads", "boosts", "grows", "profit", "success", "reducir", "bajar", "control", "sostenible", "avance", "sube", "acuerdo", "aprobado", "luz verde", "green light", "approved", "milestone"]
+# --- 4. FUNCIONES DE LÓGICA E IA ---
 
-DICCIONARIO_FRACASO = [
-    # Economía
-    "desplome", "caída", "pérdidas", "cierra", "quiebra", "crisis", "ruina", "hundimiento", "recorte", "bankruptcy", "collapse",
-    # Sanidad / Plagas
-    "brote", "foco", "plaga", "virus", "bacteria", "infección", "contagio", "enfermedad", "hospitalizado", "outbreak", "virus", "infection",
-    # Mortalidad
-    "muertos", "muerte", "fallecidos", "víctimas", "sacrificio", "cadáveres", "dead", "death", "killed",
-    # Restricciones / Legal
-    "prohibición", "prohibido", "veto", "bloqueo", "restricción", "ilegal", "denuncia", "fraude", "multa", "sanción", "ban", "restriction", "illegal", "fine",
-    # Clima / Desastres
-    "sequía", "granizo", "inundación", "alerta", "emergencia", "drought", "flood", "emergency", "warning"
-]
+def consultar_gemini(lista_noticias, tema):
+    """Genera el resumen usando la API de Gemini (Google)"""
+    if not lista_noticias:
+        return "No hay noticias suficientes para generar un informe de inteligencia."
 
-# --- 4. FUNCIONES LÓGICAS ---
-def analizar_con_inteligencia(texto_original):
+    # Preparamos los datos para el prompt (limitamos a las 25 más recientes para no saturar tokens)
+    datos_contexto = ""
+    for n in lista_noticias[:25]:
+        datos_contexto += f"- [{n['fecha_str']}] ({n['pais']}) {n['fuente']}: {n['titulo']} (Sentimiento: {n['score']:.2f})\n"
+
+    prompt = f"""
+    Actúa como un Analista de Inteligencia Corporativa y Reputación Senior.
+    Estás analizando la presencia mediática del tema: "{tema}".
+    
+    A continuación tienes las últimas noticias detectadas en prensa internacional (España, Francia, Alemania, Países Árabes, UK/USA):
+    
+    {datos_contexto}
+    
+    INSTRUCCIONES PARA EL INFORME:
+    1. **Resumen Ejecutivo:** Sintetiza en un párrafo denso la situación actual. ¿Es crisis, éxito o estabilidad?
+    2. **Análisis por Regiones:** Destaca si hay diferencias entre lo que se dice en Europa vs Mundo Árabe o Angloparlante.
+    3. **Hechos Clave:** Menciona los 2-3 eventos concretos que están moviendo la métrica.
+    4. **Conclusión y Previsión:** Basado en la tendencia, ¿qué se espera para los próximos días?
+    
+    El tono debe ser profesional, periodístico y directo. Usa formato Markdown (negritas, listas).
+    """
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {'Content-Type': 'application/json'}
+    data = {"contents": [{"parts": [{"text": prompt}]}]}
+
     try:
-        texto_analisis = traductor.translate(texto_original)
-        score_vader = analizador.polarity_scores(texto_analisis)['compound']
-        score_norm = (score_vader + 1) / 2
-        texto_low = texto_original.lower()
-        
-        # Prioridad 1: Detectar palabras de ALARMA (Fuerza nota baja)
-        for p in DICCIONARIO_FRACASO:
-            if p in texto_low: return min(score_norm, 0.20)
-            
-        # Prioridad 2: Detectar palabras de ÉXITO (Fuerza nota alta)
-        for p in DICCIONARIO_EXITO:
-            if p in texto_low: return max(score_norm, 0.85)
-            
-        return score_norm
-    except: return 0.5
+        response = requests.post(url, headers=headers, data=json.dumps(data))
+        if response.status_code == 200:
+            return response.json()['candidates'][0]['content']['parts'][0]['text']
+        else:
+            return f"Error en API Gemini: {response.text}"
+    except Exception as e:
+        return f"Error de conexión con IA: {str(e)}"
 
-def limpiar_texto_profundo(texto):
+def limpiar_texto(texto):
     txt = html.unescape(texto)
     txt = re.sub(r'<[^>]+>', '', txt)
     return " ".join(txt.split())
 
-# --- AJUSTE DE BAREMOS GLOBALES (1-7) ---
-def obtener_clima_texto(nota):
-    if nota >= 4.5: return "🟢 POSITIVO"  # Bajado de 4.8 para ser menos exigente
-    elif nota <= 2.9: return "🔴 NEGATIVO" # Bajado de 3.2 para ser menos pesimista
-    else: return "⚖️ NEUTRO"
+def obtener_sentimiento(texto_traducido_en):
+    # VADER funciona mejor en inglés
+    score = analizador.polarity_scores(texto_traducido_en)['compound']
+    # Normalizar de -1...1 a 0...1 para facilitar visualización
+    return (score + 1) / 2
 
-# --- GENERADOR DINÁMICO ---
-def generar_resumen_dinamico(todas_las_noticias, nota_global, termino_busqueda):
-    if not todas_las_noticias: return "No hay datos suficientes."
-    
-    total = len(todas_las_noticias)
-    
-    # 1. Filtro de palabras prohibidas (búsqueda)
-    busqueda_limpia = termino_busqueda.lower().replace('"', '').replace("'", "")
-    palabras_busqueda = set(busqueda_limpia.split())
-    
-    # 2. Extraer Trending Topics
-    texto_completo = " ".join([n['txt'] for n in todas_las_noticias]).lower()
-    texto_completo = re.sub(r'[^\w\s]', '', texto_completo) 
-    palabras = texto_completo.split()
-    
-    palabras_clave = [
-        p for p in palabras 
-        if p not in STOP_WORDS 
-        and p not in palabras_busqueda 
-        and len(p) > 4
-    ]
-    
-    conteo = Counter(palabras_clave)
-    top_3 = conteo.most_common(3)
-    
-    conceptos_str = ""
-    if top_3:
-        conceptos_str = ", ".join([f"**'{p[0].upper()}'**" for p in top_3])
-    else:
-        conceptos_str = "temas generales"
+# --- 5. INTERFAZ PRINCIPAL ---
 
-    # 3. Métricas (Ajustadas a los nuevos umbrales)
-    # Umbral Positivo: > 0.60
-    # Umbral Negativo: < 0.30
-    pos = sum(1 for n in todas_las_noticias if n['score'] > 0.60)
-    neg = sum(1 for n in todas_las_noticias if n['score'] < 0.30)
-    
-    # 4. Redacción
-    mensaje = f"Se han analizado **{total} impactos mediáticos**. "
-    
-    if nota_global >= 5.5:
-        mensaje += "El escenario es **altamente favorable**. La prensa destaca logros y avances significativos. "
-    elif nota_global >= 4.5:
-        mensaje += "El clima general es **positivo**, aunque con matices. "
-    elif nota_global <= 2.5:
-        mensaje += "Se detecta una **crisis de reputación severa**. El tono mediático es hostil. "
-    elif nota_global <= 3.5:
-        mensaje += "El entorno es **crítico**. Existen focos de negatividad que requieren atención. "
-    else:
-        mensaje += "La situación es de **estabilidad y cautela**. "
-        
-    mensaje += f"Al margen de la búsqueda principal, la conversación pública gira en torno a conceptos como {conceptos_str}. "
-    
-    if neg == 0 and pos > 0:
-        mensaje += "Es destacable la **ausencia total de noticias negativas** en este periodo."
-    elif neg > pos:
-        mensaje += f"⚠️ **Atención:** El volumen de noticias negativas ({neg}) supera al de positivas ({pos}), lo que indica una tendencia a la baja."
-    elif pos > neg:
-        mensaje += f"La solidez del tema se confirma con **{pos} noticias positivas**."
-    else:
-        mensaje += "Existe una **polarización exacta** entre noticias positivas y negativas."
-        
-    return mensaje
+st.title("🌍 Radar de Inteligencia Global 360º")
+st.markdown("Monitorización de reputación en **Español, Inglés, Francés, Alemán y Árabe** con análisis de IA Generativa.")
 
-# --- 5. INTERFAZ GRÁFICA ---
-st.title("🌍 Monitor de Inteligencia Global")
-st.markdown("Sistema avanzado para medir la **reputación** y el **sentimiento** de cualquier tema en prensa **Nacional** (España) e **Internacional** (Global) en tiempo real.")
-st.caption("© JCPM - 2025")
-
-# --- BOTÓN DE ENLACE EN LA BARRA LATERAL ---
-with st.sidebar:
-    st.header("Sobre nosotros")
-    st.write("Herramienta desarrollada para el análisis de inteligencia corporativa.")
-    st.link_button("🌐 Visitar Aprendidos.es", "https://www.aprendidos.es/")
-
-with st.expander("ℹ️ Ayuda y Normas de Búsqueda"):
-    st.markdown("""
-    **Guía rápida:**
-    * **Literal:** Usa comillas `""` (ej: `"Crisis del pepino"`) para buscar la frase exacta.
-    * **General:** Sin comillas busca palabras clave relacionadas.
-    """)
-
-with st.form("my_form"):
+with st.form("search_form"):
     col1, col2 = st.columns([3, 1])
-    with col1: tema_es = st.text_input("✍️ Tema a analizar:", placeholder="Ej: Agricultura Almería")
-    with col2: periodo = st.selectbox("📅 Periodo:", ["24 Horas", "Semana", "Mes", "Año"])
-    submitted = st.form_submit_button("🚀 EJECUTAR ANÁLISIS")
+    with col1: 
+        tema_busqueda = st.text_input("Objetivo de Inteligencia:", placeholder="Ej: Energía Solar, Crisis Bancaria, Nombre Empresa...")
+    with col2: 
+        periodo = st.selectbox("Ventana de Tiempo:", ["24h", "7 Días", "30 Días"])
+    
+    btn_buscar = st.form_submit_button("🚀 EJECUTAR ANÁLISIS")
 
-if submitted and tema_es:
-    with st.spinner('Escaneando satélites de noticias...'):
-        
-        # A. TRADUCCIÓN
-        try:
-            es_literal = '"' in tema_es
-            texto_limpio = tema_es.replace('"', '')
-            tema_en_raw = traductor.translate(texto_limpio)
-            tema_en = f'"{tema_en_raw}"' if es_literal else tema_en_raw
-            st.info(f"🔎 Rastreando: 🇪🇸 **{tema_es}** | 🌍 **{tema_en}**")
-        except: tema_en = tema_es
-
-        # B. FECHAS
-        ahora = datetime.now()
-        dias_map = {"24 Horas": 1, "Semana": 7, "Mes": 30, "Año": 365}
-        fecha_limite = ahora - timedelta(days=dias_map[periodo])
-
-        # C. BÚSQUEDA
-        noticias_inter, noticias_nac = [], []
-        
-        # INTERNACIONAL
-        feed_en = feedparser.parse(f"https://news.google.com/rss/search?q={urllib.parse.quote(tema_en)}&hl=en-US&gl=US&ceid=US:en")
-        for entry in feed_en.entries:
-            if hasattr(entry, 'published_parsed') and datetime.fromtimestamp(mktime(entry.published_parsed)) >= fecha_limite:
-                txt = limpiar_texto_profundo(f"{entry.title}. {entry.description}")
-                if len(txt) > 10:
-                    noticias_inter.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Intl", "fecha": datetime.fromtimestamp(mktime(entry.published_parsed)), "score": analizar_con_inteligencia(txt), "link": getattr(entry, 'link', '#')})
-
-        # NACIONAL
-        feed_es = feedparser.parse(f"https://news.google.com/rss/search?q={urllib.parse.quote(tema_es)}&hl=es-419&gl=ES&ceid=ES:es-419")
-        for entry in feed_es.entries:
-            if hasattr(entry, 'published_parsed') and datetime.fromtimestamp(mktime(entry.published_parsed)) >= fecha_limite:
-                txt = limpiar_texto_profundo(f"{entry.title}. {entry.description}")
-                if len(txt) > 10:
-                    noticias_nac.append({"txt": txt, "fuente": entry.source.title if 'source' in entry else "Nac", "fecha": datetime.fromtimestamp(mktime(entry.published_parsed)), "score": analizar_con_inteligencia(txt), "link": getattr(entry, 'link', '#')})
-
-        # D. RESULTADOS
-        if noticias_inter or noticias_nac:
-            def calc_7(lista):
-                if not lista: return 0
-                return round(1 + (statistics.mean([x['score'] for x in lista]) * 6), 1)
-
-            nota_int = calc_7(noticias_inter)
-            nota_nac = calc_7(noticias_nac)
-            nota_glob = calc_7(noticias_inter + noticias_nac)
-
-            # --- MÉTRICAS ---
-            st.divider()
-            c1, c2, c3 = st.columns(3)
-            c1.metric("🇪🇸 Nacional", f"{nota_nac}/7"); c1.caption(f"**{obtener_clima_texto(nota_nac)}**")
-            c2.metric("🌍 Internacional", f"{nota_int}/7"); c2.caption(f"**{obtener_clima_texto(nota_int)}**")
-            c3.metric("🌐 GLOBAL", f"{nota_glob}/7"); c3.caption(f"**{obtener_clima_texto(nota_glob)}**")
+if btn_buscar and tema_busqueda:
+    if "PON_AQUI" in GEMINI_API_KEY:
+        st.error("⚠️ Error de Configuración: Debes introducir tu API KEY de Google Gemini en el código.")
+    else:
+        with st.status("📡 Iniciando barrido de satélites informativos...", expanded=True) as status:
             
-            # --- ANÁLISIS DINÁMICO ---
-            todas = [{"flag": "🌍", **n} for n in noticias_inter] + [{"flag": "🇪🇸", **n} for n in noticias_nac]
-            resumen_ia = generar_resumen_dinamico(todas, nota_glob, tema_es)
+            # 1. Configuración de idiomas y regiones
+            # Estructura: Código: (Sufijo Google News, Código idioma traducción)
+            regiones = {
+                "ES": {"gl": "ES", "hl": "es-419", "lang_code": "es", "flag": "🇪🇸"},
+                "US/UK": {"gl": "US", "hl": "en-US", "lang_code": "en", "flag": "🇬🇧"},
+                "FR": {"gl": "FR", "hl": "fr-FR", "lang_code": "fr", "flag": "🇫🇷"},
+                "DE": {"gl": "DE", "hl": "de-DE", "lang_code": "de", "flag": "🇩🇪"},
+                "AR": {"gl": "SA", "hl": "ar", "lang_code": "ar", "flag": "🇸🇦"} # Arabia Saudí como proxy de mundo árabe
+            }
+
+            # 2. Definir fecha límite
+            dias = 1 if periodo == "24h" else 7 if periodo == "7 Días" else 30
+            fecha_limite = datetime.now() - timedelta(days=dias)
+
+            todas_noticias = []
             
-            st.markdown(f"""
-            <div class="analisis-ia">
-                <div class="analisis-titulo">🤖 Análisis de Inteligencia Artificial</div>
-                {resumen_ia}
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.divider()
-
-            # --- LISTADO ---
-            st.subheader(f"📝 Detalle de Noticias ({len(todas)})")
-            todas.sort(key=lambda x: x['fecha'], reverse=True)
-
-            for n in todas:
-                score = n['score']
+            # 3. Bucle de búsqueda multilingüe
+            for region, params in regiones.items():
+                st.write(f"Escaneando fuentes en {params['flag']} {region}...")
                 
-                # --- NUEVOS UMBRALES SUAVIZADOS ---
-                # > 0.60 Buena | < 0.30 Mala
-                if score > 0.60: 
-                    lbl, css = "BUENA", "noticia-buena"
-                elif score < 0.30: 
-                    lbl, css = "MALA", "noticia-mala"
-                else: 
-                    lbl, css = "NEUTRA", "noticia-neutra"
-                
-                txt_corto = (n['txt'][:400] + '...') if len(n['txt']) > 400 else n['txt']
+                # A. Traducir el término de búsqueda al idioma destino (si no es el mismo)
+                try:
+                    query_traducida = tema_busqueda
+                    if params['lang_code'] != 'es':
+                        # Usamos el traductor para buscar "Agricultura" en alemán como "Landwirtschaft"
+                        query_traducida = GoogleTranslator(source='auto', target=params['lang_code']).translate(tema_busqueda)
+                except:
+                    query_traducida = tema_busqueda # Fallback
 
-                with st.container():
+                # B. Construir URL RSS Google News
+                url_rss = f"https://news.google.com/rss/search?q={urllib.parse.quote(query_traducida)}&hl={params['hl']}&gl={params['gl']}&ceid={params['gl']}:{params['hl']}"
+                
+                # C. Descargar y procesar
+                feed = feedparser.parse(url_rss)
+                
+                for entry in feed.entries:
+                    if hasattr(entry, 'published_parsed'):
+                        fecha_pub = datetime.fromtimestamp(mktime(entry.published_parsed))
+                        if fecha_pub >= fecha_limite:
+                            try:
+                                # Texto original
+                                txt_original = limpiar_texto(f"{entry.title}. {entry.description}")
+                                
+                                # Traducción para Análisis (a Inglés para VADER) y Visualización (a Español)
+                                # Para optimizar, si es ES ya lo tenemos, si no, traducimos.
+                                if params['lang_code'] == 'es':
+                                    txt_es = txt_original
+                                    txt_en = GoogleTranslator(source='es', target='en').translate(txt_original)
+                                else:
+                                    # Traducimos a español para que el usuario entienda
+                                    txt_es = GoogleTranslator(source=params['lang_code'], target='es').translate(txt_original)
+                                    # Traducimos a inglés para el motor de sentimiento
+                                    txt_en = GoogleTranslator(source=params['lang_code'], target='en').translate(txt_original)
+                                
+                                score = obtener_sentimiento(txt_en)
+                                
+                                todas_noticias.append({
+                                    "titulo": txt_es, # Guardamos en español para la IA y el usuario
+                                    "original": txt_original,
+                                    "fuente": entry.source.title if 'source' in entry else "Google News",
+                                    "pais": params['flag'],
+                                    "fecha": fecha_pub,
+                                    "fecha_str": fecha_pub.strftime('%Y-%m-%d'),
+                                    "score": score,
+                                    "link": getattr(entry, 'link', '#')
+                                })
+                            except Exception as e:
+                                continue # Saltar errores de traducción puntuales
+
+            status.update(label="✅ Análisis completado", state="complete", expanded=False)
+
+    # --- 6. VISUALIZACIÓN DE RESULTADOS ---
+    
+    if todas_noticias:
+        # Calcular media global
+        scores = [n['score'] for n in todas_noticias]
+        media_score = statistics.mean(scores)
+        
+        # Mapear nota 0-1 a escala 0-7 (como pedías en tu código original)
+        nota_final = 1 + (media_score * 6)
+        
+        # Determinar color
+        if nota_final >= 5: color_nota = "green"
+        elif nota_final <= 2.5: color_nota = "red"
+        else: color_nota = "orange"
+
+        st.divider()
+        c1, c2, c3 = st.columns([1, 2, 1])
+        with c2:
+            st.markdown(f"<h2 style='text-align: center; color: {color_nota}'>Reputación Global: {nota_final:.1f} / 7.0</h2>", unsafe_allow_html=True)
+            st.progress(media_score)
+
+        # --- SECCIÓN IA (GEMINI) ---
+        st.markdown(f"""
+        <div class="analisis-ia">
+            <div class="analisis-titulo">🧠 Informe de Inteligencia Artificial (Gemini)</div>
+            {consultar_gemini(todas_noticias, tema_busqueda)}
+            <br><small style="color:gray">Informe generado automáticamente analizando {len(todas_noticias)} impactos en 5 idiomas.</small>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # --- LISTADO DE NOTICIAS ---
+        st.subheader(f"🗞️ Desglose de Noticias ({len(todas_noticias)})")
+        
+        # Ordenar por fecha más reciente
+        todas_noticias.sort(key=lambda x: x['fecha'], reverse=True)
+
+        for n in todas_noticias:
+            # Etiquetas visuales
+            if n['score'] > 0.6: css_class, label = "noticia-buena", "POSITIVO"
+            elif n['score'] < 0.4: css_class, label = "noticia-mala", "NEGATIVO"
+            else: css_class, label = "noticia-neutra", "NEUTRO"
+
+            with st.container():
+                col_a, col_b = st.columns([0.85, 0.15])
+                with col_a:
                     st.markdown(f"""
-                    <div style="margin-bottom: 5px; display: flex; align-items: center; justify-content: space-between;">
-                        <div><span style="font-size:1.2em;">{n['flag']}</span> <span class="fuente-fecha">[{n['fecha'].strftime('%d/%m')}] <b>{n['fuente']}</b></span></div>
-                        <span class="{css}">{lbl} ({score:.2f})</span>
-                    </div>
+                    <span style="font-size:1.1em; font-weight:bold;">{n['titulo']}</span><br>
+                    <span class="tag-lang">{n['pais']}</span> 
+                    <span class="fuente-fecha">{n['fuente']} | {n['fecha_str']}</span>
                     """, unsafe_allow_html=True)
-                    st.info(txt_corto)
-                    st.link_button("🔗 Leer noticia completa", n['link'])
-                    st.markdown("---")
-        else:
-            st.warning("No se encontraron noticias recientes.")
+                    # Expandible para ver texto original si fue traducido
+                    if n['pais'] != "🇪🇸":
+                        with st.expander("Ver texto original"):
+                            st.caption(n['original'])
+                with col_b:
+                    st.markdown(f'<div class="{css_class}" style="text-align:center; font-size:0.8em;">{label}<br>{n["score"]:.2f}</div>', unsafe_allow_html=True)
+                
+                st.markdown("---")
+    else:
+        st.warning("No se encontraron noticias relevantes en el periodo seleccionado.")
+
 
 
 

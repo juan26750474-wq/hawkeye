@@ -13,7 +13,7 @@ import pandas as pd
 st.set_page_config(page_title="Strategic Intel Board", layout="wide", page_icon="🛡️")
 
 # ⚠️ TU CLAVE AQUÍ
-GEMINI_API_KEY = "AIzaSyC8bQvMCvWCAYIwihZx2w1HgkMBDMl_n5E"
+GEMINI_API_KEY = "AIzaSyAEwwwYurbGqNvgoNqfJ8cXU_BAXYA9wyU"
 
 if GEMINI_API_KEY.startswith("AIza"):
     try:
@@ -242,6 +242,7 @@ st.markdown("""
         Desarrollo y (c) Family Meeting Pérez-Mesa
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

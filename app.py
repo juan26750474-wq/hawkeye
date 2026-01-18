@@ -12,7 +12,7 @@ import pandas as pd
 # --- 1. CONFIGURACIÓN ---
 st.set_page_config(page_title="Strategic Intel Board", layout="wide", page_icon="🛡️")
 
-# ⚠️ TU CLAVE AQUÍ
+# ⚠️ PON AQUÍ TU NUEVA API KEY (La antigua está bloqueada)
 GEMINI_API_KEY = "AIzaSyAEwwwYurbGqNvgoNqfJ8cXU_BAXYA9wyU"
 
 if GEMINI_API_KEY.startswith("AIza"):
@@ -33,21 +33,21 @@ st.markdown("""
         background-color: #ffffff;
         padding: 30px;
         border-radius: 4px;
-        border-top: 4px solid #2c3e50;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        font-family: 'Georgia', serif;
-        margin-bottom: 30px;
-    }
-    .ia-report h3 { 
-        color: #2c3e50; 
+        border-top: 5px solid #004488; /* Azul corporativo fuerte */
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
         font-family: 'Segoe UI', sans-serif;
-        font-size: 1.1em; 
-        text-transform: uppercase; 
-        border-bottom: 1px solid #eee;
-        padding-bottom: 5px;
-        margin-top: 20px;
+        margin-bottom: 30px;
+        font-size: 1.05em;
+        line-height: 1.6;
     }
+    .ia-report strong { color: #004488; }
     
+    /* Ajuste de inputs para que se vean modernos */
+    .stTextArea textarea {
+        background-color: #f9f9f9;
+        border: 1px solid #ddd;
+    }
+
     /* Footer */
     .custom-footer {
         position: fixed; bottom: 0; left: 0; width: 100%;
@@ -56,7 +56,7 @@ st.markdown("""
         border-top: 1px solid #eee; z-index: 999;
     }
     
-    .block-container { padding-top: 2rem; padding-bottom: 5rem; }
+    .block-container { padding-top: 1rem; padding-bottom: 5rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -118,42 +118,32 @@ def generar_sitrep(df_noticias, tema, rol):
     
     raw_text = ""
     df_sorted = df_noticias.sort_values(by="fecha", ascending=False)
-    for _, row in df_sorted.head(50).iterrows():
+    for _, row in df_sorted.head(60).iterrows(): # Leemos más noticias
         raw_text += f"- [{row['pais']}] {row['fuente']}: {row['titulo_es']}\n"
     
     hoy = datetime.now().strftime("%d de %B de %Y")
 
     prompt = f"""
-    Actúa como ANALISTA DE INTELIGENCIA (SITREP MILITAR/ECONÓMICO).
+    Actúa como ANALISTA DE INTELIGENCIA ESTRATÉGICA.
     FECHA: {hoy}.
+    
     OBJETIVO: "{tema}"
     PERFIL: "{rol}"
     
-    INTELIGENCIA BRUTA:
+    DATOS BRUTOS:
     {raw_text}
     
     INSTRUCCIONES:
-    1. CERO Consejos vacíos ("ahorre", "vigile"). Céntrate en CAUSA -> CONSECUENCIA.
-    2. Identifica PATRONES (Si Alemania y Holanda dicen lo mismo, es tendencia confirmada).
-    3. Estilo telegráfico y directivo.
+    1. Genera UNICAMENTE un "ESTADO DE SITUACIÓN" (Situation Report).
+    2. NO incluyas proyecciones futuras, ni consejos, ni secciones de amenazas.
+    3. Céntrate en describir la REALIDAD ACTUAL del mercado cruzando los datos de los diferentes países.
+    4. Estilo periodístico/analítico de alto nivel. Denso en información, cero paja.
     
-    FORMATO SITREP:
-    
-    ### ⚡ Estado de Situación
-    (Dinámica actual del mercado: Alcista/Bajista/Volátil. Cita fuentes).
-    
-    ### 📅 Proyecciones Tácticas & Estratégicas
-    
-    **Corto Plazo (Inmediato)**
-    * **Dinámica:** [Análisis]
-    * **Trigger:** [Hecho noticioso clave]
-    
-    **Medio Plazo (Tendencia)**
-    * **Escenario Base:** [Proyección]
-    * **Riesgos:** [Regulación/Clima]
-    
-    ### 🛑 Amenazas Críticas
-    (Solo si existen peligros reales detectados).
+    FORMATO:
+    Redacta un análisis fluido de 2 o 3 párrafos potentes que integren:
+    - Movimientos de precios o volúmenes actuales.
+    - Situación en mercados de origen (competencia) vs destino.
+    - Factores climáticos o logísticos activos AHORA mismo.
     """
 
     try:
@@ -168,31 +158,36 @@ def generar_sitrep(df_noticias, tema, rol):
 st.title("🛡️ Strategic Intel Board")
 
 with st.form("main_form"):
-    c1, c2, c3, c4 = st.columns([2, 4, 1.5, 1.5])
+    # Columnas ajustadas para dar espacio a los text_area
+    c1, c2, c3, c4 = st.columns([2, 4, 1.2, 1.2])
     
     with c1:
-        st.write("**Foco**")
-        tema = st.text_input("Tema", value="Tomate Exportación", label_visibility="collapsed")
+        st.write("**1. Foco**")
+        # height=85 da espacio para 3 lineas cómodas
+        tema = st.text_area("Foco", value="Tomate Exportación", height=85, label_visibility="collapsed")
     
     with c2:
-        st.write("**Perfil**")
-        rol = st.text_input("Rol", value="Productor Almería. Busco ventanas de precio.", label_visibility="collapsed")
+        st.write("**2. Perfil Estratégico**")
+        rol = st.text_area("Perfil", value="Productor Almería. Busco analizar competencia en Marruecos y Holanda.", height=85, label_visibility="collapsed")
         
     with c3:
-        st.write("**Ventana**")
+        st.write("**3. Ventana**")
+        # Usamos un espacio vacío arriba para alinear el selectbox con los text area visualmente
+        st.write("") 
         periodo_map = {"24 Horas": 1, "7 Días": 7, "30 Días": 30, "Trimestre": 90}
         periodo_sel = st.selectbox("Tiempo", list(periodo_map.keys()), index=2, label_visibility="collapsed")
         
     with c4:
         st.write("") 
         st.write("") 
+        # Botón grande
         btn_run = st.form_submit_button("🔎 ANALIZAR", type="primary", use_container_width=True)
 
 dias = periodo_map[periodo_sel]
 
 if btn_run:
     if "PON_AQUI" in GEMINI_API_KEY:
-        st.error("⚠️ Configura la API KEY.")
+        st.error("⚠️ Error: Necesitas poner la NUEVA API Key en el código.")
         st.stop()
 
     df = obtener_noticias(tema, dias)
@@ -200,34 +195,34 @@ if btn_run:
     if not df.empty:
         st.write("")
         
-        # --- TOP: DATOS CRUDOS SIMPLES ---
-        c_left, c_right = st.columns([1, 3])
+        # --- ESTRUCTURA: DATOS IZQ | ANÁLISIS DCHA ---
+        col_datos, col_ia = st.columns([1, 2.5])
         
-        with c_left:
-            st.subheader("📊 Distribución")
-            # Tabla simple de conteo por país
+        with col_datos:
+            st.markdown("### 📊 Datos")
+            # Tabla simple de conteo
             conteo = df['pais'].value_counts().reset_index()
             conteo.columns = ['Mercado', 'Noticias']
             st.dataframe(conteo, hide_index=True, use_container_width=True)
+            
+            st.info(f"Total: {len(df)} señales")
 
-        with c_right:
-            st.subheader("🧠 SITREP (Reporte de Situación)")
-            with st.spinner("Procesando inteligencia..."):
+        with col_ia:
+            st.markdown("### ⚡ Estado de Situación")
+            with st.spinner("Sintetizando inteligencia de mercado..."):
                 sitrep = generar_sitrep(df, tema, rol)
             st.markdown(f'<div class="ia-report">{sitrep}</div>', unsafe_allow_html=True)
 
-        # --- FOOTER: TABLA PRINCIPAL ---
-        st.subheader("📂 Fuentes de Inteligencia")
+        # --- TABLA INFERIOR ---
+        st.markdown("### 📂 Fuentes Confirmadas")
         
         st.dataframe(
             df[['fecha_str', 'pais', 'fuente', 'titulo_es', 'link']],
             column_config={
                 "fecha_str": st.column_config.TextColumn("Fecha", width="small"),
-                "pais": st.column_config.TextColumn("Mercado", width="small"),
+                "pais": st.column_config.TextColumn("Origen", width="small"),
                 "fuente": st.column_config.TextColumn("Medio", width="medium"),
-                # AQUÍ ESTÁ EL CAMBIO: Ancho grande para leer bien
                 "titulo_es": st.column_config.TextColumn("Titular Detectado", width="large"), 
-                # AQUÍ ESTÁ EL CAMBIO: Solo dice "Leer"
                 "link": st.column_config.LinkColumn("Ref", display_text="Leer") 
             },
             use_container_width=True,

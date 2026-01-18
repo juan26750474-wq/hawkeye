@@ -15,7 +15,7 @@ import statistics
 st.set_page_config(page_title="Analizador Global 360", layout="centered")
 
 # ⚠️ ¡PEGA AQUÍ TU CLAVE DE GOOGLE AI STUDIO! ⚠️
-GEMINI_API_KEY = "PON_AQUI_TU_API_KEY_REAL" 
+GEMINI_API_KEY = "AIzaSyC8bQvMCvWCAYIwihZx2w1HgkMBDMl_n5E" 
 
 # --- 2. ESTILOS CSS ---
 st.markdown("""
@@ -253,6 +253,7 @@ if todas_noticias:
             
 elif btn_buscar:
     st.warning("No se encontraron noticias. Intenta con un término más general.")
+
 
 
 

@@ -12,14 +12,23 @@ import pandas as pd
 # --- 1. CONFIGURATION ---
 st.set_page_config(page_title="Strategic Intel Board", layout="wide", page_icon="🛡️")
 
-# ⚠️ PON AQUÍ TU API KEY
-GEMINI_API_KEY = "AIzaSyDEC8AwHB-i6xnxCYD-Jjju5Nn7twAuN8o"
+# --- GESTIÓN DE SECRETOS (SEGURIDAD) ---
+# Intentamos obtener la clave de los secretos de Streamlit de forma segura
+try:
+    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+except FileNotFoundError:
+    st.error("⚠️ Error Crítico: No se encontró el archivo de secretos (.streamlit/secrets.toml).")
+    st.stop()
+except KeyError:
+    st.error("⚠️ Error Crítico: La clave 'GEMINI_API_KEY' no está definida en los secretos.")
+    st.stop()
 
-if GEMINI_API_KEY.startswith("AIza"):
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-    except Exception as e:
-        st.error(f"API Error: {e}")
+# Configuración de Google Gemini
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+except Exception as e:
+    st.error(f"Error al configurar la API de Gemini: {e}")
+    st.stop()
 
 # --- 2. CSS & DESIGN ---
 st.markdown("""
@@ -94,11 +103,11 @@ def limpiar_html(texto):
 def obtener_noticias(tema, dias):
     mercados = {
         "🇪🇸 ES":   {"gl": "ES", "hl": "es-419", "lang": "es"},
-        "🇲🇦 MA":   {"gl": "MA", "hl": "fr",     "lang": "fr"}, 
-        "🇳🇱 NL":   {"gl": "NL", "hl": "nl",     "lang": "nl"},
-        "🇩🇪 DE":   {"gl": "DE", "hl": "de",     "lang": "de"},
-        "🇫🇷 FR":   {"gl": "FR", "hl": "fr",     "lang": "fr"},
-        "🇬🇧 UK":   {"gl": "GB", "hl": "en",     "lang": "en"}
+        "🇲🇦 MA":   {"gl": "MA", "hl": "fr",      "lang": "fr"}, 
+        "🇳🇱 NL":   {"gl": "NL", "hl": "nl",      "lang": "nl"},
+        "🇩🇪 DE":   {"gl": "DE", "hl": "de",      "lang": "de"},
+        "🇫🇷 FR":   {"gl": "FR", "hl": "fr",      "lang": "fr"},
+        "🇬🇧 UK":   {"gl": "GB", "hl": "en",      "lang": "en"}
     }
 
     fecha_limite = datetime.now() - timedelta(days=dias)
@@ -222,10 +231,8 @@ with st.form("main_form"):
 dias = periodo_map[periodo_sel]
 
 if btn_run:
-    if "PON_AQUI" in GEMINI_API_KEY:
-        st.error("⚠️ Error: Pon tu API KEY en el código.")
-        st.stop()
-
+    # Nota: Ya no es necesario verificar "PON_AQUI" porque verificamos st.secrets al inicio.
+    
     df = obtener_noticias(tema, dias)
 
     if not df.empty:
@@ -252,7 +259,7 @@ if btn_run:
         # Desplegable para limpiar la vista
         with st.expander("📂 Fuentes de Inteligencia (Tabla)", expanded=True):
             
-            # FORMATO CUADRO (TABLA) COMO PEDISTE
+            # FORMATO CUADRO (TABLA)
             st.dataframe(
                 df[['Fecha', 'Mercado', 'Fuente', 'Titular', 'Link']],
                 column_config={
@@ -275,6 +282,7 @@ st.markdown("""
         Development & (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

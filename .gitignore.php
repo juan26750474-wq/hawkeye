@@ -1,0 +1,4 @@
+﻿# .gitignore
+.streamlit/secrets.toml
+*.pyc
+__pycache__/

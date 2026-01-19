@@ -193,7 +193,7 @@ def generar_sitrep(df_noticias, tema, rol):
     
     SALIDA:
     3 párrafos de análisis.
-    4. Nombra las fuentes clave.
+    4. Nombra las fuentes clave conforme redactas el informe, incluyéndolas en el texto.
     """
 
     try:
@@ -281,6 +281,7 @@ st.markdown("""
         Development & (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

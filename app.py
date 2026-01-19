@@ -93,6 +93,10 @@ st.markdown("""
     
     .block-container { padding-top: 1rem; padding-bottom: 5rem; }
 </style>
+
+<div style="position: fixed; top: 10px; left: 20px; z-index: 10000; font-size: 10px; color: #888; font-family: sans-serif;">
+    Desarrollo Family Meeting Pérez-Mesa (c)
+</div>
 """, unsafe_allow_html=True)
 
 # --- 3. LOGIC ---
@@ -176,7 +180,7 @@ def generar_sitrep(df_noticias, tema, rol):
     
     SALIDA:
     3 párrafos de análisis de alto nivel.
-    4. Nombra las fuentes en las que te basas para opinar sobre un asunto.
+    4. Nombra las fuentes en las que te basas para opinar sobre un asunto: si es posible que enlace el medio a la noticia.
     """
 
     try:
@@ -282,6 +286,7 @@ st.markdown("""
         Development & (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

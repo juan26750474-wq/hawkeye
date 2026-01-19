@@ -13,7 +13,6 @@ import pandas as pd
 st.set_page_config(page_title="Strategic Intel Board", layout="wide", page_icon="🛡️")
 
 # --- GESTIÓN DE SECRETOS (SEGURIDAD) ---
-# Intentamos obtener la clave de los secretos de Streamlit de forma segura
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 except FileNotFoundError:
@@ -33,6 +32,7 @@ except Exception as e:
 # --- 2. CSS & DESIGN ---
 st.markdown("""
 <style>
+    /* Ocultar elementos estándar de Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     [data-testid="stToolbar"] {visibility: hidden;}
@@ -73,7 +73,7 @@ st.markdown("""
         background-color: #ffffff;
         padding: 25px;
         border-radius: 8px;
-        border-left: 6px solid #2c5364; /* A juego con la cabecera */
+        border-left: 6px solid #2c5364;
         box-shadow: 0 2px 12px rgba(0,0,0,0.08);
         font-family: 'Segoe UI', sans-serif;
         font-size: 1rem;
@@ -94,7 +94,7 @@ st.markdown("""
     .block-container { padding-top: 1rem; padding-bottom: 5rem; }
 </style>
 
-<div style="position: fixed; top: 10px; left: 20px; z-index: 10000; font-size: 10px; color: #888; font-family: sans-serif;">
+<div style="position: fixed; top: 0; left: 0; width: 100%; padding: 5px 15px; z-index: 999999; font-size: 10px; color: #888; font-family: sans-serif; background-color: rgba(255,255,255,0.8); pointer-events: none;">
     Desarrollo Family Meeting Pérez-Mesa (c)
 </div>
 """, unsafe_allow_html=True)
@@ -180,7 +180,7 @@ def generar_sitrep(df_noticias, tema, rol):
     
     SALIDA:
     3 párrafos de análisis de alto nivel.
-    4. Nombra las fuentes en las que te basas para opinar sobre un asunto: si es posible que enlace el medio a la noticia.
+    4. Nombra las fuentes en las que te basas para opinar sobre un asunto.
     """
 
     try:
@@ -192,7 +192,7 @@ def generar_sitrep(df_noticias, tema, rol):
 
 # --- 4. INTERFACE ---
 
-# CABECERA VISUAL (Logo + Títulos en Inglés)
+# CABECERA VISUAL
 st.markdown("""
 <div class="header-container">
     <div class="logo-img">🛡️</div>
@@ -235,8 +235,6 @@ with st.form("main_form"):
 dias = periodo_map[periodo_sel]
 
 if btn_run:
-    # Nota: Ya no es necesario verificar "PON_AQUI" porque verificamos st.secrets al inicio.
-    
     df = obtener_noticias(tema, dias)
 
     if not df.empty:
@@ -260,17 +258,13 @@ if btn_run:
         # --- NOTICIAS (FORMATO CUADRO/TABLA) ---
         st.markdown("---")
         
-        # Desplegable para limpiar la vista
         with st.expander("📂 Fuentes de Inteligencia (Tabla)", expanded=True):
-            
-            # FORMATO CUADRO (TABLA)
             st.dataframe(
                 df[['Fecha', 'Mercado', 'Fuente', 'Titular', 'Link']],
                 column_config={
                     "Fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", width="small"),
                     "Mercado": st.column_config.TextColumn("Mercado", width="small"),
                     "Fuente": st.column_config.TextColumn("Fuente", width="medium"),
-                    # Ancho LARGE para que se lea mejor el titular
                     "Titular": st.column_config.TextColumn("Titular", width="large"), 
                     "Link": st.column_config.LinkColumn("Ref", display_text="Leer")
                 },
@@ -286,6 +280,7 @@ st.markdown("""
         Development & (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

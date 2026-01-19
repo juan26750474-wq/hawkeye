@@ -1,2 +1,0 @@
-﻿# .streamlit/secrets.toml
-GEMINI_API_KEY = "AIzaSyDEC8AwHB-i6xnxCYD-Jjju5Nn7twAuN8o"

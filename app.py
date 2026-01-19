@@ -36,7 +36,6 @@ st.markdown("""
     footer {visibility: hidden;}
     [data-testid="stToolbar"] {visibility: hidden;}
     
-    /* CABECERA ESTILO DASHBOARD */
     .header-container {
         display: flex;
         align-items: center;
@@ -67,7 +66,6 @@ st.markdown("""
         font-weight: 300;
     }
 
-    /* CAJA SITREP */
     .ia-report {
         background-color: #ffffff;
         padding: 25px;
@@ -81,7 +79,6 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    /* FOOTER */
     .custom-footer {
         position: fixed; bottom: 0; left: 0; width: 100%;
         background-color: #f8f9fa; color: #6c757d;
@@ -92,7 +89,6 @@ st.markdown("""
     
     .block-container { padding-top: 1rem; padding-bottom: 5rem; }
 
-    /* TOOLTIP HELP */
     .help-icon {
         cursor: help;
         color: #2c5364;
@@ -112,26 +108,32 @@ def limpiar_html(texto):
     return html.unescape(re.sub(r'<[^>]+>', '', texto)).strip()
 
 def obtener_noticias(tema, dias):
-    # He incluido 'ar' (árabe) para el mercado de Marruecos
+    # DICCIONARIO AMPLIADO CON RADAR SOCIAL
     mercados = {
-        "🇪🇸 ES":   {"gl": "ES", "hl": "es-419", "lang": "es"},
-        "🇲🇦 MA":   {"gl": "MA", "hl": "ar",      "lang": "ar"}, 
-        "🇳🇱 NL":   {"gl": "NL", "hl": "nl",      "lang": "nl"},
-        "🇩🇪 DE":   {"gl": "DE", "hl": "de",      "lang": "de"},
-        "🇫🇷 FR":   {"gl": "FR", "hl": "fr",      "lang": "fr"},
-        "🇬🇧 UK":   {"gl": "GB", "hl": "en",      "lang": "en"}
+        "🇪🇸 ES":   {"gl": "ES", "hl": "es-419", "lang": "es", "site": ""},
+        "🇲🇦 MA":   {"gl": "MA", "hl": "ar",      "lang": "ar", "site": ""}, 
+        "🇳🇱 NL":   {"gl": "NL", "hl": "nl",      "lang": "nl", "site": ""},
+        "🇩🇪 DE":   {"gl": "DE", "hl": "de",      "lang": "de", "site": ""},
+        "🇫🇷 FR":   {"gl": "FR", "hl": "fr",      "lang": "fr", "site": ""},
+        "🇬🇧 UK":   {"gl": "GB", "hl": "en",      "lang": "en", "site": ""},
+        "🔗 LINKEDIN": {"gl": "US", "hl": "en",  "lang": "es", "site": "site:linkedin.com/posts"},
+        "🐦 X/TWITTER": {"gl": "US", "hl": "en", "lang": "es", "site": "site:x.com"},
+        "👾 REDDIT":   {"gl": "US", "hl": "en",  "lang": "es", "site": "site:reddit.com"},
+        "👥 FACEBOOK": {"gl": "US", "hl": "en",  "lang": "es", "site": "site:facebook.com"}
     }
 
     fecha_limite = datetime.now() - timedelta(days=dias)
     lista_noticias = []
-    
     progreso = st.progress(0)
     
     for i, (nombre_pais, params) in enumerate(mercados.items()):
         progreso.progress((i + 1) / len(mercados))
         try:
             query = tema
-            if params['lang'] != 'es':
+            # Si es una red social, usamos el operador 'site:'
+            if params['site']:
+                query = f"{params['site']} \"{tema}\""
+            elif params['lang'] != 'es':
                 query = GoogleTranslator(source='es', target=params['lang']).translate(tema)
             
             q_enc = urllib.parse.quote(query) + (f"+when:{dias}d" if dias < 300 else "+when:1y")
@@ -144,13 +146,13 @@ def obtener_noticias(tema, dias):
                     if dt >= fecha_limite:
                         tit_orig = limpiar_html(entry.title)
                         tit_es = tit_orig
-                        if params['lang'] != 'es':
-                            # Usamos 'auto' para asegurar que detecte el árabe u otros correctamente al traducir de vuelta
+                        # Traducimos de vuelta si no es español o es red social (que suelen venir en inglés)
+                        if params['lang'] != 'es' or params['site'] != "":
                             tit_es = GoogleTranslator(source='auto', target='es').translate(tit_orig)
                         
                         lista_noticias.append({
                             "Mercado": nombre_pais,
-                            "Fuente": entry.source.title,
+                            "Fuente": entry.source.title if hasattr(entry, 'source') else nombre_pais.split()[-1],
                             "Fecha": dt, 
                             "Fecha_Texto": dt.strftime("%Y-%m-%d"),
                             "Titular": tit_es,
@@ -166,7 +168,8 @@ def generar_sitrep(df_noticias, tema, rol):
     
     raw_text = ""
     df_sorted = df_noticias.sort_values(by="Fecha", ascending=False)
-    for _, row in df_sorted.head(70).iterrows(): 
+    # Enviamos un mix de noticias y redes a la IA
+    for _, row in df_sorted.head(80).iterrows(): 
         raw_text += f"- [{row['Mercado']}] {row['Fuente']}: {row['Titular']}\n"
     
     hoy = datetime.now().strftime("%d de %B de %Y")
@@ -177,20 +180,20 @@ def generar_sitrep(df_noticias, tema, rol):
     FOCO: "{tema}"
     PERFIL: "{rol}"
     
-    NOTICIAS:
+    SITREP (INFORME DE SITUACIÓN):
+    Mezcla información de prensa sectorial con el pulso de las redes sociales (LinkedIn, X, etc.).
+    
+    NOTICIAS Y SEÑALES SOCIALES:
     {raw_text}
     
     INSTRUCCIONES:
-    1. Redacta un SITREP (Informe de Situación) en ESPAÑOL.
-    2. Estilo ejecutivo, directo y basado puramente en los hechos recientes.
-    3. Cruza información de orígenes y destinos.
-    4. Sólo hacer análisis de situación. No hacer recomendaciones.
-    5. Filtra las noticias para  hacer informe, si se te pide información de países y temas concretos no des información superflua.
+    1. Redacta el SITREP en ESPAÑOL.
+    2. Identifica si hay discrepancias entre la prensa oficial y lo que se dice en redes.
+    3. Estilo ejecutivo y frío. Sin recomendaciones.
     
     SALIDA:
-    3 párrafos de análisis de alto nivel.
-    4. Nombra las fuentes en las que te basas para opinar sobre un asunto.
-    5. Si se es capaz, enlazar fuente con el link de la noticia. 
+    3 párrafos de análisis.
+    4. Nombra las fuentes clave.
     """
 
     try:
@@ -241,45 +244,44 @@ with st.form("main_form"):
         st.write("") 
         btn_run = st.form_submit_button("ANALIZAR", type="primary", use_container_width=True)
 
-dias = periodo_map[periodo_sel]
-
 if btn_run:
-    df = obtener_noticias(tema, dias)
+    df = obtener_noticias(tema, periodo_map[periodo_sel])
     if not df.empty:
         st.write("")
         col_datos, col_ia = st.columns([1, 2.5])
         with col_datos:
             st.markdown("### 📊 Señales")
             conteo = df['Mercado'].value_counts().reset_index()
-            conteo.columns = ['Mercado', 'Noticias']
+            conteo.columns = ['Origen', 'Impactos']
             st.dataframe(conteo, hide_index=True, use_container_width=True)
         with col_ia:
             st.markdown("### ⚡ Estado de Situación")
-            with st.spinner("Generando SITREP..."):
+            with st.spinner("Sincronizando Radar Social..."):
                 sitrep = generar_sitrep(df, tema, rol)
             st.markdown(f'<div class="ia-report">{sitrep}</div>', unsafe_allow_html=True)
         st.markdown("---")
-        with st.expander("📂 Fuentes de Inteligencia (Tabla)", expanded=True):
+        with st.expander("📂 Inteligencia de Fuentes (Tabla)", expanded=True):
             st.dataframe(
                 df[['Fecha', 'Mercado', 'Fuente', 'Titular', 'Link']],
                 column_config={
                     "Fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", width="small"),
-                    "Mercado": st.column_config.TextColumn("Mercado", width="small"),
+                    "Mercado": st.column_config.TextColumn("Origen", width="small"),
                     "Fuente": st.column_config.TextColumn("Fuente", width="medium"),
                     "Titular": st.column_config.TextColumn("Titular", width="large"), 
-                    "Link": st.column_config.LinkColumn("Ref", display_text="Leer")
+                    "Link": st.column_config.LinkColumn("Ref", display_text="Ver")
                 },
                 use_container_width=True,
                 hide_index=True
             )
     else:
-        st.info(f"Sin resultados para: {periodo_sel}.")
+        st.info("Sin resultados en el radar.")
 
 st.markdown("""
     <div class="custom-footer">
         Development & (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

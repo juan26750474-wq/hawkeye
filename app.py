@@ -112,9 +112,10 @@ def limpiar_html(texto):
     return html.unescape(re.sub(r'<[^>]+>', '', texto)).strip()
 
 def obtener_noticias(tema, dias):
+    # He incluido 'ar' (árabe) para el mercado de Marruecos
     mercados = {
         "🇪🇸 ES":   {"gl": "ES", "hl": "es-419", "lang": "es"},
-        "🇲🇦 MA":   {"gl": "MA", "hl": "fr",      "lang": "fr"}, 
+        "🇲🇦 MA":   {"gl": "MA", "hl": "ar",      "lang": "ar"}, 
         "🇳🇱 NL":   {"gl": "NL", "hl": "nl",      "lang": "nl"},
         "🇩🇪 DE":   {"gl": "DE", "hl": "de",      "lang": "de"},
         "🇫🇷 FR":   {"gl": "FR", "hl": "fr",      "lang": "fr"},
@@ -144,7 +145,8 @@ def obtener_noticias(tema, dias):
                         tit_orig = limpiar_html(entry.title)
                         tit_es = tit_orig
                         if params['lang'] != 'es':
-                            tit_es = GoogleTranslator(source=params['lang'], target='es').translate(tit_orig)
+                            # Usamos 'auto' para asegurar que detecte el árabe u otros correctamente al traducir de vuelta
+                            tit_es = GoogleTranslator(source='auto', target='es').translate(tit_orig)
                         
                         lista_noticias.append({
                             "Mercado": nombre_pais,
@@ -213,7 +215,6 @@ with st.form("main_form"):
     c1, c2, c3, c4 = st.columns([2, 4, 1.2, 1.2])
     
     with c1:
-        # Título con Icono de Información y Ayuda
         st.markdown('**1. Foco de Análisis** <span class="help-icon" title=\'Palabra exacta: "Tomate cherry"\nOperador OR: Tomate OR Pepino\nExcluir palabras: Tomate -subasta\'>ℹ️</span>', unsafe_allow_html=True)
         tema = st.text_area("Foco", value="Tomate Exportación", height=85, label_visibility="collapsed")
     

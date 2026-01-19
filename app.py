@@ -32,7 +32,6 @@ except Exception as e:
 # --- 2. CSS & DESIGN ---
 st.markdown("""
 <style>
-    /* Ocultar elementos estándar de Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     [data-testid="stToolbar"] {visibility: hidden;}
@@ -92,6 +91,14 @@ st.markdown("""
     }
     
     .block-container { padding-top: 1rem; padding-bottom: 5rem; }
+
+    /* TOOLTIP HELP */
+    .help-icon {
+        cursor: help;
+        color: #2c5364;
+        font-size: 0.9rem;
+        margin-left: 5px;
+    }
 </style>
 
 <div style="position: fixed; top: 0; left: 0; width: 100%; padding: 5px 15px; z-index: 999999; font-size: 10px; color: #888; font-family: sans-serif; background-color: rgba(255,255,255,0.8); pointer-events: none;">
@@ -192,7 +199,6 @@ def generar_sitrep(df_noticias, tema, rol):
 
 # --- 4. INTERFACE ---
 
-# CABECERA VISUAL
 st.markdown("""
 <div class="header-container">
     <div class="logo-img">🛡️</div>
@@ -207,7 +213,8 @@ with st.form("main_form"):
     c1, c2, c3, c4 = st.columns([2, 4, 1.2, 1.2])
     
     with c1:
-        st.write("**1. Foco de Análisis**")
+        # Título con Icono de Información y Ayuda
+        st.markdown('**1. Foco de Análisis** <span class="help-icon" title=\'Palabra exacta: "Tomate cherry"\nOperador OR: Tomate OR Pepino\nExcluir palabras: Tomate -subasta\'>ℹ️</span>', unsafe_allow_html=True)
         tema = st.text_area("Foco", value="Tomate Exportación", height=85, label_visibility="collapsed")
     
     with c2:
@@ -236,28 +243,20 @@ dias = periodo_map[periodo_sel]
 
 if btn_run:
     df = obtener_noticias(tema, dias)
-
     if not df.empty:
         st.write("")
-        
-        # --- TOP: DATOS + INFORME ---
         col_datos, col_ia = st.columns([1, 2.5])
-        
         with col_datos:
             st.markdown("### 📊 Señales")
             conteo = df['Mercado'].value_counts().reset_index()
             conteo.columns = ['Mercado', 'Noticias']
             st.dataframe(conteo, hide_index=True, use_container_width=True)
-
         with col_ia:
             st.markdown("### ⚡ Estado de Situación")
             with st.spinner("Generando SITREP..."):
                 sitrep = generar_sitrep(df, tema, rol)
             st.markdown(f'<div class="ia-report">{sitrep}</div>', unsafe_allow_html=True)
-
-        # --- NOTICIAS (FORMATO CUADRO/TABLA) ---
         st.markdown("---")
-        
         with st.expander("📂 Fuentes de Inteligencia (Tabla)", expanded=True):
             st.dataframe(
                 df[['Fecha', 'Mercado', 'Fuente', 'Titular', 'Link']],
@@ -274,12 +273,12 @@ if btn_run:
     else:
         st.info(f"Sin resultados para: {periodo_sel}.")
 
-# --- FOOTER ---
 st.markdown("""
     <div class="custom-footer">
         Development & (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
     </div>
 """, unsafe_allow_html=True)
+
 
 
 

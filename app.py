@@ -13,21 +13,13 @@ import pandas as pd
 st.set_page_config(page_title="Strategic Intel Board", layout="wide", page_icon="🛡️")
 
 # --- GESTIÓN DE SECRETOS (SEGURIDAD) ---
+GEMINI_API_KEY = None
+
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-except FileNotFoundError:
-    st.error("⚠️ Error Crítico: No se encontró el archivo de secretos (.streamlit/secrets.toml).")
-    st.stop()
-except KeyError:
-    st.error("⚠️ Error Crítico: La clave 'GEMINI_API_KEY' no está definida en los secretos.")
-    st.stop()
-
-# Configuración de Google Gemini
-try:
     genai.configure(api_key=GEMINI_API_KEY)
-except Exception as e:
-    st.error(f"Error al configurar la API de Gemini: {e}")
-    st.stop()
+except Exception:
+    pass  # Se gestiona más abajo al usar la API
 
 # --- 2. CSS & DESIGN ---
 st.markdown("""
@@ -158,6 +150,7 @@ def obtener_noticias(tema, dias):
 
 def generar_sitrep(df_noticias, tema, rol):
     if df_noticias.empty: return "Sin datos para generar informe."
+    if not GEMINI_API_KEY: return "⚠️ API key no configurada."
     
     raw_text = ""
     df_sorted = df_noticias.sort_values(by="Fecha", ascending=False)

@@ -96,10 +96,6 @@ st.markdown("""
         margin-left: 5px;
     }
 </style>
-
-<div style="position: fixed; top: 0; left: 0; width: 100%; padding: 5px 15px; z-index: 999999; font-size: 10px; color: #888; font-family: sans-serif; background-color: rgba(255,255,255,0.8); pointer-events: none;">
-    Desarrollo Family Meeting Pérez-Mesa (c)
-</div>
 """, unsafe_allow_html=True)
 
 # --- 3. LOGIC ---
@@ -108,7 +104,6 @@ def limpiar_html(texto):
     return html.unescape(re.sub(r'<[^>]+>', '', texto)).strip()
 
 def obtener_noticias(tema, dias):
-    # DICCIONARIO AMPLIADO CON RADAR SOCIAL
     mercados = {
         "🇪🇸 ES":   {"gl": "ES", "hl": "es-419", "lang": "es", "site": ""},
         "🇲🇦 MA":   {"gl": "MA", "hl": "ar",      "lang": "ar", "site": ""}, 
@@ -130,7 +125,6 @@ def obtener_noticias(tema, dias):
         progreso.progress((i + 1) / len(mercados))
         try:
             query = tema
-            # Si es una red social, usamos el operador 'site:'
             if params['site']:
                 query = f"{params['site']} \"{tema}\""
             elif params['lang'] != 'es':
@@ -146,7 +140,6 @@ def obtener_noticias(tema, dias):
                     if dt >= fecha_limite:
                         tit_orig = limpiar_html(entry.title)
                         tit_es = tit_orig
-                        # Traducimos de vuelta si no es español o es red social (que suelen venir en inglés)
                         if params['lang'] != 'es' or params['site'] != "":
                             tit_es = GoogleTranslator(source='auto', target='es').translate(tit_orig)
                         
@@ -168,7 +161,6 @@ def generar_sitrep(df_noticias, tema, rol):
     
     raw_text = ""
     df_sorted = df_noticias.sort_values(by="Fecha", ascending=False)
-    # Enviamos un mix de noticias y redes a la IA
     for _, row in df_sorted.head(80).iterrows(): 
         raw_text += f"- [{row['Mercado']}] {row['Fuente']}: {row['Titular']}\n"
     
@@ -278,7 +270,7 @@ if btn_run:
 
 st.markdown("""
     <div class="custom-footer">
-        Development & (c) Family Meeting Pérez-Mesa | Strategic Intelligence Unit
+        Strategic Intelligence Unit · horti.space
     </div>
 """, unsafe_allow_html=True)
 

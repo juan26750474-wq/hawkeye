@@ -9,6 +9,7 @@ import html
 import re
 import pandas as pd
 import requests
+import json
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(page_title="Strategic Intel Board", layout="wide", page_icon="🛡️")
@@ -31,7 +32,6 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     [data-testid="stToolbar"] {visibility: hidden;}
-
     .header-container {
         display: flex;
         align-items: center;
@@ -46,36 +46,21 @@ st.markdown("""
     .header-text h1 {
         margin: 0;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        font-weight: 700;
-        font-size: 2rem;
-        color: #ffffff;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+        font-weight: 700; font-size: 2rem; color: #ffffff;
+        text-transform: uppercase; letter-spacing: 1px;
     }
-    .header-text p {
-        margin: 5px 0 0 0;
-        font-size: 0.9rem;
-        color: #a8c0ff;
-        font-weight: 300;
-    }
+    .header-text p { margin: 5px 0 0 0; font-size: 0.9rem; color: #a8c0ff; font-weight: 300; }
     .ia-report {
-        background-color: #ffffff;
-        padding: 25px;
-        border-radius: 8px;
-        border-left: 6px solid #2c5364;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-        font-family: 'Segoe UI', sans-serif;
-        font-size: 1rem;
-        line-height: 1.6;
-        color: #333;
-        margin-bottom: 20px;
+        background-color: #ffffff; padding: 25px; border-radius: 8px;
+        border-left: 6px solid #2c5364; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        font-family: 'Segoe UI', sans-serif; font-size: 1rem; line-height: 1.6;
+        color: #333; margin-bottom: 20px;
     }
     .custom-footer {
         position: fixed; bottom: 0; left: 0; width: 100%;
         background-color: #f8f9fa; color: #6c757d;
         text-align: center; padding: 12px; font-size: 0.75em;
-        border-top: 1px solid #e9ecef; z-index: 999;
-        font-family: monospace;
+        border-top: 1px solid #e9ecef; z-index: 999; font-family: monospace;
     }
     .block-container { padding-top: 1rem; padding-bottom: 5rem; }
     .help-icon { cursor: help; color: #2c5364; font-size: 0.9rem; margin-left: 5px; }
@@ -112,10 +97,8 @@ def obtener_noticias(tema, dias):
                 query = f"{params['site']} \"{tema}\""
             elif params['lang'] != 'es':
                 query = GoogleTranslator(source='es', target=params['lang']).translate(tema)
-
             q_enc = urllib.parse.quote(query) + (f"+when:{dias}d" if dias < 300 else "+when:1y")
             url = f"https://news.google.com/rss/search?q={q_enc}&hl={params['hl']}&gl={params['gl']}&ceid={params['gl']}:{params['hl']}"
-
             feed = feedparser.parse(url)
             for entry in feed.entries:
                 if hasattr(entry, 'published_parsed'):
@@ -135,37 +118,30 @@ def obtener_noticias(tema, dias):
                         })
         except:
             continue
-
     progreso.empty()
     return pd.DataFrame(lista_noticias)
 
 def generar_sitrep(df_noticias, tema, rol):
     if df_noticias.empty: return "Sin datos para generar informe."
     if not GEMINI_API_KEY: return "API key no configurada."
-
     raw_text = ""
     df_sorted = df_noticias.sort_values(by="Fecha", ascending=False)
     for _, row in df_sorted.head(80).iterrows():
         raw_text += f"- [{row['Mercado']}] {row['Fuente']}: {row['Titular']}\n"
-
     hoy = datetime.now().strftime("%d de %B de %Y")
     prompt = f"""
     Eres ANALISTA DE INTELIGENCIA ESTRATÉGICA.
     FECHA: {hoy}.
     FOCO: "{tema}"
     PERFIL: "{rol}"
-
     SITREP (INFORME DE SITUACIÓN):
     Mezcla información de prensa sectorial con el pulso de las redes sociales (LinkedIn, X, etc.).
-
     NOTICIAS Y SEÑALES SOCIALES:
     {raw_text}
-
     INSTRUCCIONES:
     1. Redacta el SITREP en ESPAÑOL.
     2. Identifica si hay discrepancias entre la prensa oficial y lo que se dice en redes.
     3. Estilo ejecutivo y frío. Sin recomendaciones.
-
     SALIDA:
     3 párrafos de análisis.
     4. Nombra las fuentes clave conforme redactas el informe, incluyéndolas en el texto.
@@ -177,27 +153,46 @@ def generar_sitrep(df_noticias, tema, rol):
     except Exception as e:
         return f"Error IA: {str(e)}"
 
-def publicar_informe(fecha_legible, foco, perfil, contenido):
+def df_a_json_serializable(df):
+    """Convierte el DataFrame a lista de dicts serializable (sin Timestamps)"""
+    rows = []
+    for _, row in df.iterrows():
+        rows.append({
+            "Mercado": row["Mercado"],
+            "Fuente": row["Fuente"],
+            "Fecha": row["Fecha_Texto"],
+            "Titular": row["Titular"],
+            "Link": row["Link"]
+        })
+    return rows
+
+def publicar_informe(fecha_legible, foco, perfil, contenido, df_noticias):
     try:
+        noticias_json = df_a_json_serializable(df_noticias)
+        conteo = df_noticias['Mercado'].value_counts().reset_index()
+        conteo.columns = ['Origen', 'Impactos']
+        conteo_json = conteo.to_dict(orient='records')
+
         payload = {
             "secret": HORTI_API_SECRET,
             "fecha": datetime.now().strftime("%Y-%m-%d"),
             "fecha_legible": fecha_legible,
             "foco": foco,
             "perfil": perfil,
-            "contenido": contenido
+            "contenido": contenido,
+            "noticias": noticias_json,
+            "conteo": conteo_json
         }
         r = requests.post(
             HORTI_API_URL + "guardar_informe.php",
             json=payload,
-            timeout=10
+            timeout=15
         )
         return r.json()
     except Exception as e:
         return {"error": str(e)}
 
 # --- 4. INTERFACE ---
-
 st.markdown("""
 <div class="header-container">
     <div class="logo-img">🛡️</div>
@@ -208,35 +203,23 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Inicializar session_state
 for key in ['sitrep', 'tema', 'rol', 'df', 'publicado', 'archivo_publicado']:
     if key not in st.session_state:
         st.session_state[key] = None
 
 with st.form("main_form"):
     c1, c2, c3, c4 = st.columns([2, 4, 1.2, 1.2])
-
     with c1:
         st.markdown('**1. Foco de Análisis** <span class="help-icon" title=\'Palabra exacta: "Tomate cherry"\nOperador OR: Tomate OR Pepino\nExcluir palabras: Tomate -subasta\'>ℹ️</span>', unsafe_allow_html=True)
         tema = st.text_area("Foco", value="Tomate Exportación", height=85, label_visibility="collapsed")
-
     with c2:
         st.write("**2. Perfil Estratégico**")
         rol = st.text_area("Perfil", value="Productor Almería. Competencia Marruecos/Holanda.", height=85, label_visibility="collapsed")
-
     with c3:
         st.write("**3. Ventana**")
         st.write("")
-        periodo_map = {
-            "24 Horas": 1,
-            "7 Días": 7,
-            "30 Días": 30,
-            "Trimestre": 90,
-            "Semestre": 180,
-            "Anual": 365
-        }
+        periodo_map = {"24 Horas": 1, "7 Días": 7, "30 Días": 30, "Trimestre": 90, "Semestre": 180, "Anual": 365}
         periodo_sel = st.selectbox("Tiempo", list(periodo_map.keys()), index=2, label_visibility="collapsed")
-
     with c4:
         st.write("")
         st.write("")
@@ -275,8 +258,7 @@ if btn_run:
                     "Titular": st.column_config.TextColumn("Titular", width="large"),
                     "Link": st.column_config.LinkColumn("Ref", display_text="Ver")
                 },
-                use_container_width=True,
-                hide_index=True
+                use_container_width=True, hide_index=True
             )
     else:
         st.info("Sin resultados en el radar.")
@@ -286,6 +268,7 @@ if st.session_state.get('sitrep'):
     hoy = datetime.now().strftime("%d de %B de %Y")
     tema_actual = st.session_state.get('tema', '')
     rol_actual  = st.session_state.get('rol', '')
+    df_actual   = st.session_state.get('df')
 
     st.markdown("---")
     st.markdown("### ✏️ Revisar y Publicar Informe")
@@ -302,7 +285,7 @@ if st.session_state.get('sitrep'):
     with col_pub:
         if st.button("📤 Publicar en horti.space", type="primary", use_container_width=True):
             with st.spinner("Publicando..."):
-                resultado = publicar_informe(hoy, tema_actual, rol_actual, informe_editado)
+                resultado = publicar_informe(hoy, tema_actual, rol_actual, informe_editado, df_actual)
             if resultado.get('ok'):
                 st.session_state['publicado'] = True
                 st.session_state['archivo_publicado'] = resultado.get('archivo', '')
